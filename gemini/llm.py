@@ -1,7 +1,4 @@
-from dataclasses import dataclass
-from pydantic import BaseModel
 from enum import Enum
-from typing import Callable
 
 from google import genai
 from google.genai import types
@@ -16,12 +13,6 @@ from .response import GeminiResponse
 _TEMP_PROMPT:str = """
 You are an agent that can think and take actions to achieve a target.
 """
-
-#TODO: For Temp USE. Need to use config + adapter -> GenAIConfig
-_TEMP_CONFIG:GeminiConfig = GeminiConfig(
-    api_key = "AQ.Ab8RN6IY_DYij6ButOlm77Hf7HX5pBczhgprpr-I3Rh6BvOr5w",
-    model_name = "gemini-3.5-flash"
-)
 
 class ReasoningEffort(Enum):
     minimal = types.ThinkingLevel.MINIMAL
@@ -105,89 +96,3 @@ class Gemini:
         
                 
         return GeminiResponse(response.candidates[0].content)
-    
-
-if __name__ == "__main__":
-    class _SmokeArguments(BaseModel):
-        left: int
-        right: int
-
-    class _SmokeResult(BaseModel):
-        total: int
-
-    def _smoke_add(arguments: _SmokeArguments) -> _SmokeResult:
-        return _SmokeResult(
-            total=arguments.left + arguments.right
-        )
-
-    smoke_tool = AsterTool(
-        name="smoke_add",
-        description="Add two integers and return their total.",
-        func=_smoke_add,
-        args_schema=_SmokeArguments,
-        return_schema=_SmokeResult,
-    )
-
-    smoke_response = Gemini(
-        config=_TEMP_CONFIG,
-        tools=[smoke_tool],
-    ).invoke(
-        target=(
-            "Call smoke_add exactly once with left=20 and right=22. "
-            "Do not calculate the answer yourself."
-        ),
-        context=[
-            types.Content(
-                role="user",
-                parts=[
-                    types.Part.from_text(
-                        text="Use the provided tool to complete the target."
-                    )
-                ],
-            )
-        ],
-        effort=ReasoningEffort.minimal,
-    )
-
-    if not smoke_response.tool_calls:
-        raise AssertionError(
-            "Smoke test failed: Gemini returned no function call."
-        )
-
-    smoke_call = next(
-        (
-            call
-            for call in smoke_response.tool_calls
-            if call.name == smoke_tool.name
-        ),
-        None,
-    )
-    if smoke_call is None:
-        raise AssertionError(
-            "Smoke test failed: Gemini did not call smoke_add."
-        )
-    if smoke_call.args is None:
-        raise AssertionError(
-            "Smoke test failed: smoke_add received no arguments."
-        )
-
-    smoke_arguments: dict[str, object] = {
-        name: value
-        for name, value in smoke_call.args.items()
-    }
-    smoke_result = smoke_tool.invoke(smoke_arguments)
-
-    if not isinstance(smoke_result, _SmokeResult):
-        raise AssertionError(
-            "Smoke test failed: AsterTool returned an unexpected model."
-        )
-    if smoke_result.total != 42:
-        raise AssertionError(
-            f"Smoke test failed: expected 42, got {smoke_result.total}."
-        )
-
-    print("Gemini function call:", smoke_call)
-    print("AsterTool result:", smoke_result.model_dump(mode="json"))
-    print("Smoke test passed.")
-
-    
