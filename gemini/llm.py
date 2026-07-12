@@ -7,8 +7,8 @@ from google import genai
 from google.genai import types
 
 
-from config import GeminiConfig
-from model_gateway.tool import AsterTool
+from .config import GeminiConfig
+from ..tool import AsterTool
 from ..prompt import AsterPrompt
 from .response import GeminiResponse
 
@@ -108,5 +108,86 @@ class Gemini:
     
 
 if __name__ == "__main__":
+    class _SmokeArguments(BaseModel):
+        left: int
+        right: int
+
+    class _SmokeResult(BaseModel):
+        total: int
+
+    def _smoke_add(arguments: _SmokeArguments) -> _SmokeResult:
+        return _SmokeResult(
+            total=arguments.left + arguments.right
+        )
+
+    smoke_tool = AsterTool(
+        name="smoke_add",
+        description="Add two integers and return their total.",
+        func=_smoke_add,
+        args_schema=_SmokeArguments,
+        return_schema=_SmokeResult,
+    )
+
+    smoke_response = Gemini(
+        config=_TEMP_CONFIG,
+        tools=[smoke_tool],
+    ).invoke(
+        target=(
+            "Call smoke_add exactly once with left=20 and right=22. "
+            "Do not calculate the answer yourself."
+        ),
+        context=[
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(
+                        text="Use the provided tool to complete the target."
+                    )
+                ],
+            )
+        ],
+        effort=ReasoningEffort.minimal,
+    )
+
+    if not smoke_response.tool_calls:
+        raise AssertionError(
+            "Smoke test failed: Gemini returned no function call."
+        )
+
+    smoke_call = next(
+        (
+            call
+            for call in smoke_response.tool_calls
+            if call.name == smoke_tool.name
+        ),
+        None,
+    )
+    if smoke_call is None:
+        raise AssertionError(
+            "Smoke test failed: Gemini did not call smoke_add."
+        )
+    if smoke_call.args is None:
+        raise AssertionError(
+            "Smoke test failed: smoke_add received no arguments."
+        )
+
+    smoke_arguments: dict[str, object] = {
+        name: value
+        for name, value in smoke_call.args.items()
+    }
+    smoke_result = smoke_tool.invoke(smoke_arguments)
+
+    if not isinstance(smoke_result, _SmokeResult):
+        raise AssertionError(
+            "Smoke test failed: AsterTool returned an unexpected model."
+        )
+    if smoke_result.total != 42:
+        raise AssertionError(
+            f"Smoke test failed: expected 42, got {smoke_result.total}."
+        )
+
+    print("Gemini function call:", smoke_call)
+    print("AsterTool result:", smoke_result.model_dump(mode="json"))
+    print("Smoke test passed.")
 
     
