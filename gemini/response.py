@@ -5,7 +5,7 @@ from google import genai
 from google.genai import types
     
 
-class GenAIAgentResponse():
+class GeminiResponse():
     _content:types.Content
     
     
@@ -17,7 +17,7 @@ class GenAIAgentResponse():
     def __init__(self, content:types.Content)->None:
         self._content = content
         self._thoughts = None
-        
+
         self.output = ""
         self.tool_calls = None
         if not content.parts:
