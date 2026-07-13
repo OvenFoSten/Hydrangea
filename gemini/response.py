@@ -1,30 +1,24 @@
-from dataclasses import dataclass
-from enum import Enum
-
-from google import genai
 from google.genai import types
-    
 
-class GeminiResponse():
-    _content:types.Content
-    
-    
-    thoughts:list[str]|None
-    tool_calls:list[types.FunctionCall]|None
-    output:str
-    
-    
-    def __init__(self, content:types.Content)->None:
-        self._content = content
-        self._thoughts = None
+
+
+class GeminiResponse:
+    content: types.Content
+    thoughts: list[str] | None
+    tool_calls: list[types.FunctionCall] | None
+    output: str
+
+    def __init__(self, content: types.Content) -> None:
+        self.content = content
+        self.thoughts = None
 
         self.output = ""
         self.tool_calls = None
         if not content.parts:
             raise ValueError("No content from Google, please check the API availability.")
-        
-        response_thoughts:list[str] = []
-        response_tool_calls:list[types.FunctionCall] = []
+
+        response_thoughts: list[str] = []
+        response_tool_calls: list[types.FunctionCall] = []
         for part in content.parts:
             if part.thought and part.text:
                 response_thoughts.append(part.text)
@@ -38,9 +32,7 @@ class GeminiResponse():
                 self.output += part.text
                 continue
 
-                
         if response_thoughts:
-            self._thoughts = response_thoughts
+            self.thoughts = response_thoughts
         if response_tool_calls:
             self.tool_calls = response_tool_calls
-
