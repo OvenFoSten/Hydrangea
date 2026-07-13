@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from enum import Enum
 
 from google import genai
@@ -54,18 +55,21 @@ class Gemini:
             for tool in tools or []
         ]
         
-    #TODO: The Context need further design
-    def invoke(self, 
-               target:str, 
-               context:list[types.ContentUnionDict],
-               effort:ReasoningEffort
-               )->GeminiResponse:
+    def invoke(
+        self,
+        target: str,
+        context: Sequence[types.Content],
+        effort: ReasoningEffort,
+    ) -> GeminiResponse:
         prompt = self._prompt.render({
             "target":target
         })
+        sdk_context: list[types.ContentUnionDict] = []
+        sdk_context.extend(context)
+
         response = self._client.models.generate_content(
             model=self._config.model_name,
-            contents=context,
+            contents=sdk_context,
             config=types.GenerateContentConfig(
                 thinking_config=types.ThinkingConfig(
                 thinking_level=effort.value,
