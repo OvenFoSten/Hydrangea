@@ -5,7 +5,7 @@ from google.genai import types
 
 
 from .config import GeminiConfig
-from .context import AsterContext
+from .context import GeminiContext
 from ..tool import AsterTool
 from ..prompt import AsterPrompt
 from .response import GeminiResponse
@@ -58,14 +58,14 @@ class Gemini:
     def invoke(
         self,
         target: str,
-        context: AsterContext,
+        context: GeminiContext,
         effort: ReasoningEffort,
     ) -> GeminiResponse:
         prompt = self._prompt.render({
             "target":target
         })
         sdk_context: list[types.ContentUnionDict] = []
-        sdk_context.extend(context.gemini)
+        sdk_context.extend(context.contents)
 
         response = self._client.models.generate_content(
             model=self._config.model_name,

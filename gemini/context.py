@@ -2,7 +2,7 @@ from collections.abc import Iterable
 
 from google.genai import types
 
-from ..context import (
+from ..message import (
     AsterFunctionReplyTurn,
     AsterMessage,
     AsterRole,
@@ -15,7 +15,7 @@ _GEMINI_ROLE_MAPPING: dict[AsterRole, str] = {
 }
 
 
-def _aster_message_to_gemini_content(
+def aster_message_to_gemini_content(
     message: AsterMessage,
 ) -> types.Content:
     return types.Content(
@@ -24,7 +24,7 @@ def _aster_message_to_gemini_content(
     )
 
 
-def _aster_function_reply_turn_to_gemini_content(
+def aster_function_reply_turn_to_gemini_content(
     turn: AsterFunctionReplyTurn,
 ) -> types.Content:
     return types.Content(
@@ -42,39 +42,26 @@ def _aster_function_reply_turn_to_gemini_content(
     )
 
 
-class AsterContext:
-    _gemini: list[types.Content]
+class GeminiContext:
+    _contents: list[types.Content]
 
     def __init__(
         self,
-        gemini: Iterable[types.Content] | None = None,
+        contents: Iterable[types.Content] | None = None,
     ) -> None:
-        self._gemini = list(
-            gemini if gemini is not None else ()
+        self._contents = list(
+            contents if contents is not None else ()
         )
 
     def push_back(self, content: types.Content) -> None:
-        self._gemini.append(content)
-
-    def emplace_message(self, message: AsterMessage) -> None:
-        self._gemini.append(
-            _aster_message_to_gemini_content(message)
-        )
-
-    def emplace_function_replies(
-        self,
-        turn: AsterFunctionReplyTurn,
-    ) -> None:
-        self._gemini.append(
-            _aster_function_reply_turn_to_gemini_content(turn)
-        )
+        self._contents.append(content)
 
     def pop_back(self) -> types.Content:
-        return self._gemini.pop()
+        return self._contents.pop()
 
     @property
-    def gemini(self) -> list[types.Content]:
-        return self._gemini.copy()
+    def contents(self) -> list[types.Content]:
+        return self._contents.copy()
 
     def __len__(self) -> int:
-        return len(self._gemini)
+        return len(self._contents)

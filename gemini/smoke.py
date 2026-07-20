@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 
 from ..context import (
+    AsterContext,
     AsterFunctionReply,
     AsterFunctionReplyTurn,
     AsterMessage,
@@ -12,7 +13,7 @@ from ..context import (
 )
 from ..tool import AsterTool
 from .config import GeminiConfig
-from .context import AsterContext
+from .context import GeminiContext
 from .llm import Gemini, ReasoningEffort
 
 
@@ -48,7 +49,7 @@ def main() -> None:
         config=smoke_config,
         tools=[smoke_tool],
     )
-    smoke_context = AsterContext()
+    smoke_context = AsterContext(GeminiContext())
     smoke_context.emplace_message(
         AsterMessage(
             role=AsterRole.user,
@@ -62,7 +63,7 @@ def main() -> None:
 
     smoke_response = smoke_gemini.invoke(
         target=smoke_target,
-        context=smoke_context,
+        context=smoke_context.gemini,
         effort=ReasoningEffort.minimal,
     )
 
@@ -117,7 +118,7 @@ def main() -> None:
             f"Smoke test failed: expected 42, got {smoke_result.total}."
         )
 
-    smoke_context.push_back(smoke_response.content)
+    smoke_context.push_back(smoke_response)
     smoke_context.emplace_function_replies(
         AsterFunctionReplyTurn(
             replies=(
@@ -130,7 +131,7 @@ def main() -> None:
         )
     )
 
-    second_request_context = smoke_context.gemini
+    second_request_context = smoke_context.gemini.contents
     context_roles = [content.role for content in second_request_context]
     if context_roles != ["user", "model", "user"]:
         raise AssertionError(
@@ -163,7 +164,7 @@ def main() -> None:
 
     final_response = smoke_gemini.invoke(
         target=smoke_target,
-        context=smoke_context,
+        context=smoke_context.gemini,
         effort=ReasoningEffort.minimal,
     )
     if final_response.tool_calls:

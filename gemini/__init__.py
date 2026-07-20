@@ -1,12 +1,12 @@
 from .config import GeminiConfig
-from .context import AsterContext
+from .context import GeminiContext
 from .llm import Gemini, ReasoningEffort
 from .response import GeminiResponse
 
 __all__ = [
-    "AsterContext",
     "Gemini",
     "GeminiConfig",
+    "GeminiContext",
     "GeminiResponse",
     "ReasoningEffort",
 ]
