@@ -12,7 +12,7 @@ from ..context import (
 )
 from ..tool import AsterTool
 from .config import GeminiConfig
-from .context import GeminiContext
+from .context import AsterContext
 from .llm import Gemini, ReasoningEffort
 
 
@@ -48,7 +48,7 @@ def main() -> None:
         config=smoke_config,
         tools=[smoke_tool],
     )
-    smoke_context = GeminiContext()
+    smoke_context = AsterContext()
     smoke_context.emplace_message(
         AsterMessage(
             role=AsterRole.user,
@@ -62,7 +62,7 @@ def main() -> None:
 
     smoke_response = smoke_gemini.invoke(
         target=smoke_target,
-        context=smoke_context.contents,
+        context=smoke_context,
         effort=ReasoningEffort.minimal,
     )
 
@@ -130,7 +130,7 @@ def main() -> None:
         )
     )
 
-    second_request_context = smoke_context.contents
+    second_request_context = smoke_context.gemini
     context_roles = [content.role for content in second_request_context]
     if context_roles != ["user", "model", "user"]:
         raise AssertionError(
@@ -163,7 +163,7 @@ def main() -> None:
 
     final_response = smoke_gemini.invoke(
         target=smoke_target,
-        context=second_request_context,
+        context=smoke_context,
         effort=ReasoningEffort.minimal,
     )
     if final_response.tool_calls:

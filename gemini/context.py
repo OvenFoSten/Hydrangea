@@ -42,22 +42,22 @@ def _aster_function_reply_turn_to_gemini_content(
     )
 
 
-class GeminiContext:
-    _contents: list[types.Content]
+class AsterContext:
+    _gemini: list[types.Content]
 
     def __init__(
         self,
-        contents: Iterable[types.Content] | None = None,
+        gemini: Iterable[types.Content] | None = None,
     ) -> None:
-        self._contents = list(
-            contents if contents is not None else ()
+        self._gemini = list(
+            gemini if gemini is not None else ()
         )
 
     def push_back(self, content: types.Content) -> None:
-        self._contents.append(content)
+        self._gemini.append(content)
 
     def emplace_message(self, message: AsterMessage) -> None:
-        self._contents.append(
+        self._gemini.append(
             _aster_message_to_gemini_content(message)
         )
 
@@ -65,16 +65,16 @@ class GeminiContext:
         self,
         turn: AsterFunctionReplyTurn,
     ) -> None:
-        self._contents.append(
+        self._gemini.append(
             _aster_function_reply_turn_to_gemini_content(turn)
         )
 
     def pop_back(self) -> types.Content:
-        return self._contents.pop()
+        return self._gemini.pop()
 
     @property
-    def contents(self) -> list[types.Content]:
-        return self._contents.copy()
+    def gemini(self) -> list[types.Content]:
+        return self._gemini.copy()
 
     def __len__(self) -> int:
-        return len(self._contents)
+        return len(self._gemini)
