@@ -2,7 +2,7 @@ from collections.abc import Iterable
 
 from google.genai import types
 
-from ..context import (
+from ..message import (
     AsterFunctionReplyTurn,
     AsterMessage,
     AsterRole,
@@ -15,7 +15,7 @@ _GEMINI_ROLE_MAPPING: dict[AsterRole, str] = {
 }
 
 
-def _aster_message_to_gemini_content(
+def aster_message_to_gemini_content(
     message: AsterMessage,
 ) -> types.Content:
     return types.Content(
@@ -24,7 +24,7 @@ def _aster_message_to_gemini_content(
     )
 
 
-def _aster_function_reply_turn_to_gemini_content(
+def aster_function_reply_turn_to_gemini_content(
     turn: AsterFunctionReplyTurn,
 ) -> types.Content:
     return types.Content(
@@ -55,19 +55,6 @@ class GeminiContext:
 
     def push_back(self, content: types.Content) -> None:
         self._contents.append(content)
-
-    def emplace_message(self, message: AsterMessage) -> None:
-        self._contents.append(
-            _aster_message_to_gemini_content(message)
-        )
-
-    def emplace_function_replies(
-        self,
-        turn: AsterFunctionReplyTurn,
-    ) -> None:
-        self._contents.append(
-            _aster_function_reply_turn_to_gemini_content(turn)
-        )
 
     def pop_back(self) -> types.Content:
         return self._contents.pop()

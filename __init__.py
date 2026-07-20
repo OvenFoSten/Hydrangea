@@ -1,4 +1,11 @@
-from .gemini import Gemini, GeminiConfig, GeminiResponse, ReasoningEffort
+from .gemini import (
+    Gemini,
+    GeminiConfig,
+    GeminiContext,
+    GeminiResponse,
+    ReasoningEffort,
+)
+from .context import AsterContext
 from .general import EmbClient, EmbClientConfig
 from .tool import AsterTool
 
@@ -8,6 +15,7 @@ __all__ = [
     "EmbClientConfig",
     "Gemini",
     "GeminiConfig",
+    "GeminiContext",
     "GeminiResponse",
     "ReasoningEffort",
 ]

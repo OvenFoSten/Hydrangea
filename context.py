@@ -1,31 +1,93 @@
-from dataclasses import dataclass
-from enum import Enum
-
-from pydantic import BaseModel
-
-
-class AsterRole(Enum):
-    user = "user"
-    assistant = "assistant"
-
-
-@dataclass(frozen=True)
-class AsterMessage:
-    role: AsterRole
-    content: str
+from .gemini.context import (
+    GeminiContext,
+    aster_function_reply_turn_to_gemini_content,
+    aster_message_to_gemini_content,
+)
+from .gemini.response import GeminiResponse
+from .message import (
+    AsterFunctionReply,
+    AsterFunctionReplyTurn,
+    AsterMessage,
+    AsterRole,
+)
 
 
-@dataclass(frozen=True)
-class AsterFunctionReply:
-    call_id: str | None
-    name: str
-    content: BaseModel
+def _unsupported_native_context(native: object) -> TypeError:
+    return TypeError(
+        "Unsupported native context: "
+        f"{type(native).__name__}"
+    )
 
 
-@dataclass(frozen=True)
-class AsterFunctionReplyTurn:
-    replies: tuple[AsterFunctionReply, ...]
+class AsterContext:
+    _native: object
 
-    def __post_init__(self) -> None:
-        if not self.replies:
-            raise ValueError("A function reply turn must contain at least one reply.")
+    def __init__(self, native: GeminiContext) -> None:
+        self._native = native
+
+    def push_back(self, response: GeminiResponse) -> None:
+        match self._native:
+            case GeminiContext() as context:
+                context.push_back(response.content)
+
+            case _:
+                raise _unsupported_native_context(self._native)
+
+    def emplace_message(self, message: AsterMessage) -> None:
+        match self._native:
+            case GeminiContext() as context:
+                context.push_back(
+                    aster_message_to_gemini_content(message)
+                )
+
+            case _:
+                raise _unsupported_native_context(self._native)
+
+    def emplace_function_replies(
+        self,
+        turn: AsterFunctionReplyTurn,
+    ) -> None:
+        match self._native:
+            case GeminiContext() as context:
+                context.push_back(
+                    aster_function_reply_turn_to_gemini_content(
+                        turn
+                    )
+                )
+
+            case _:
+                raise _unsupported_native_context(self._native)
+
+    def pop_back(self) -> None:
+        match self._native:
+            case GeminiContext() as context:
+                _ = context.pop_back()
+
+            case _:
+                raise _unsupported_native_context(self._native)
+
+    @property
+    def gemini(self) -> GeminiContext:
+        match self._native:
+            case GeminiContext() as context:
+                return context
+
+            case _:
+                raise _unsupported_native_context(self._native)
+
+    def __len__(self) -> int:
+        match self._native:
+            case GeminiContext() as context:
+                return len(context)
+
+            case _:
+                raise _unsupported_native_context(self._native)
+
+
+__all__ = [
+    "AsterContext",
+    "AsterFunctionReply",
+    "AsterFunctionReplyTurn",
+    "AsterMessage",
+    "AsterRole",
+]
