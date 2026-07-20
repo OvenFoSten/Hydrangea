@@ -3,7 +3,6 @@ from collections.abc import Iterable
 from google.genai import types
 
 from ..context import (
-    AsterContextItem,
     AsterFunctionReplyTurn,
     AsterMessage,
     AsterRole,
@@ -43,23 +42,6 @@ def _aster_function_reply_turn_to_gemini_content(
     )
 
 
-def _aster_context_item_to_gemini_content(
-    item: object,
-) -> types.Content:
-    match item:
-        case AsterMessage():
-            return _aster_message_to_gemini_content(item)
-
-        case AsterFunctionReplyTurn():
-            return _aster_function_reply_turn_to_gemini_content(item)
-
-        case _:
-            raise TypeError(
-                "Unsupported Aster context item: "
-                f"{type(item).__name__}"
-            )
-
-
 class GeminiContext:
     _contents: list[types.Content]
 
@@ -74,9 +56,17 @@ class GeminiContext:
     def push_back(self, content: types.Content) -> None:
         self._contents.append(content)
 
-    def emplace_back(self, item: AsterContextItem) -> None:
+    def emplace_message(self, message: AsterMessage) -> None:
         self._contents.append(
-            _aster_context_item_to_gemini_content(item)
+            _aster_message_to_gemini_content(message)
+        )
+
+    def emplace_function_replies(
+        self,
+        turn: AsterFunctionReplyTurn,
+    ) -> None:
+        self._contents.append(
+            _aster_function_reply_turn_to_gemini_content(turn)
         )
 
     def pop_back(self) -> types.Content:

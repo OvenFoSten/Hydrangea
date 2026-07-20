@@ -49,7 +49,7 @@ def main() -> None:
         tools=[smoke_tool],
     )
     smoke_context = GeminiContext()
-    smoke_context.emplace_back(
+    smoke_context.emplace_message(
         AsterMessage(
             role=AsterRole.user,
             content="Use the provided tool to complete the target.",
@@ -118,7 +118,7 @@ def main() -> None:
         )
 
     smoke_context.push_back(smoke_response.content)
-    smoke_context.emplace_back(
+    smoke_context.emplace_function_replies(
         AsterFunctionReplyTurn(
             replies=(
                 AsterFunctionReply(
