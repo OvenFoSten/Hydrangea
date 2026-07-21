@@ -10,10 +10,10 @@ from ..context import (
     AsterFunctionReplyTurn,
     AsterMessage,
     AsterRole,
+    ContextType,
 )
 from ..tool import AsterTool
 from .config import GeminiConfig
-from .context import GeminiContext
 from .llm import Gemini, ReasoningEffort
 
 
@@ -49,7 +49,11 @@ def main() -> None:
         config=smoke_config,
         tools=[smoke_tool],
     )
-    smoke_context = AsterContext(GeminiContext())
+    smoke_context = AsterContext(ContextType.gemini)
+    if len(smoke_context) != 0:
+        raise AssertionError(
+            "Smoke test failed: default context is not empty."
+        )
     smoke_context.emplace_message(
         AsterMessage(
             role=AsterRole.user,
