@@ -15,21 +15,7 @@ from .message import (
 
 
 class ContextType(Enum):
-    gemini = "gemini"
-
-    @property
-    def native_type(self) -> type[object]:
-        candidate: object = self
-
-        match candidate:
-            case ContextType.gemini:
-                return GeminiContext
-
-            case _:
-                raise TypeError(
-                    "Unsupported context type: "
-                    f"{candidate!r}"
-                )
+    gemini = GeminiContext
 
 
 def _unsupported_context_type(context_type: object) -> TypeError:
@@ -52,8 +38,8 @@ def _native_context_type_mismatch(
 ) -> TypeError:
     return TypeError(
         "Native context does not match "
-        f"{context_type.value!r}: expected "
-        f"{context_type.native_type.__name__}, got "
+        f"{context_type.name!r}: expected "
+        f"{context_type.value.__name__}, got "
         f"{type(native).__name__}."
     )
 
@@ -71,14 +57,15 @@ class AsterContext:
 
         match candidate_type:
             case ContextType() as checked_type:
+                native_type = checked_type.value
                 candidate_native: object = (
-                    checked_type.native_type()
+                    native_type()
                     if native is None
                     else native
                 )
                 if not isinstance(
                     candidate_native,
-                    checked_type.native_type,
+                    native_type,
                 ):
                     raise _native_context_type_mismatch(
                         checked_type,
@@ -96,9 +83,10 @@ class AsterContext:
 
         match candidate_type:
             case ContextType() as checked_type:
+                native_type = checked_type.value
                 if not isinstance(
                     self._native,
-                    checked_type.native_type,
+                    native_type,
                 ):
                     raise _native_context_type_mismatch(
                         checked_type,
