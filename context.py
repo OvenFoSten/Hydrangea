@@ -12,6 +12,17 @@ from .message import (
 )
 
 
+class ContextType(Enum):
+    gemini = GeminiContext
+
+
+def _unsupported_context_type(context_type: object) -> TypeError:
+    return TypeError(
+        "Unsupported context type: "
+        f"{context_type!r}"
+    )
+
+
 def _unsupported_native_context(native: object) -> TypeError:
     return TypeError(
         "Unsupported native context: "
@@ -19,11 +30,70 @@ def _unsupported_native_context(native: object) -> TypeError:
     )
 
 
+def _native_context_type_mismatch(
+    context_type: ContextType,
+    native: object,
+) -> TypeError:
+    return TypeError(
+        "Native context does not match "
+        f"{context_type.name!r}: expected "
+        f"{context_type.value.__name__}, got "
+        f"{type(native).__name__}."
+    )
+
+
 class AsterContext:
     _native: object
 
-    def __init__(self, native: GeminiContext) -> None:
-        self._native = native
+    def __init__(
+        self,
+        context_type: ContextType,
+        native: GeminiContext | None = None,
+    ) -> None:
+        candidate_type: object = context_type
+
+        match candidate_type:
+            case ContextType() as checked_type:
+                native_type = checked_type.value
+                candidate_native: object = (
+                    native_type()
+                    if native is None
+                    else native
+                )
+                if not isinstance(
+                    candidate_native,
+                    native_type,
+                ):
+                    raise _native_context_type_mismatch(
+                        checked_type,
+                        candidate_native,
+                    )
+
+                self._type = checked_type
+                self._native = candidate_native
+
+            case _:
+                raise _unsupported_context_type(candidate_type)
+
+    def _checked_native(self) -> object:
+        candidate_type: object = self._type
+
+        match candidate_type:
+            case ContextType() as checked_type:
+                native_type = checked_type.value
+                if not isinstance(
+                    self._native,
+                    native_type,
+                ):
+                    raise _native_context_type_mismatch(
+                        checked_type,
+                        self._native,
+                    )
+
+                return self._native
+
+            case _:
+                raise _unsupported_context_type(candidate_type)
 
     def push_back(self, response: GeminiResponse) -> None:
         match self._native:
