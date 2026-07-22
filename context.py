@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import TypeAlias
 
 from .gemini.context import (
     GeminiContext,
@@ -12,6 +13,9 @@ from .message import (
     AsterMessage,
     AsterRole,
 )
+
+AsterNativeContext: TypeAlias = GeminiContext
+AsterNativeResponse: TypeAlias = GeminiResponse
 
 
 class ContextType(Enum):
@@ -44,6 +48,17 @@ def _native_context_type_mismatch(
     )
 
 
+def _unsupported_native_context_response_pair(
+    native: object,
+    response: object,
+) -> TypeError:
+    return TypeError(
+        "Unsupported native context/response pair: "
+        f"{type(native).__name__} <- "
+        f"{type(response).__name__}."
+    )
+
+
 class AsterContext:
     _type: ContextType
     _native: object
@@ -51,7 +66,7 @@ class AsterContext:
     def __init__(
         self,
         context_type: ContextType,
-        native: GeminiContext | None = None,
+        native: AsterNativeContext | None = None,
     ) -> None:
         candidate_type: object = context_type
 
@@ -98,15 +113,25 @@ class AsterContext:
             case _:
                 raise _unsupported_context_type(candidate_type)
 
-    def push_back(self, response: GeminiResponse) -> None:
+    def push_back(
+        self,
+        response: AsterNativeResponse,
+    ) -> None:
         native = self._checked_native()
+        candidate_response: object = response
 
-        match native:
-            case GeminiContext() as context:
-                context.push_back(response.content)
+        match native, candidate_response:
+            case (
+                GeminiContext() as context,
+                GeminiResponse() as gemini_response,
+            ):
+                context.push_back(gemini_response.content)
 
             case _:
-                raise _unsupported_native_context(native)
+                raise _unsupported_native_context_response_pair(
+                    native,
+                    candidate_response,
+                )
 
     def emplace_message(self, message: AsterMessage) -> None:
         native = self._checked_native()
@@ -178,6 +203,8 @@ __all__ = [
     "AsterFunctionReply",
     "AsterFunctionReplyTurn",
     "AsterMessage",
+    "AsterNativeContext",
+    "AsterNativeResponse",
     "AsterRole",
     "ContextType",
 ]
