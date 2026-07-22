@@ -1,3 +1,5 @@
+from enum import Enum
+
 from .gemini.context import (
     GeminiContext,
     aster_function_reply_turn_to_gemini_content,
@@ -43,6 +45,7 @@ def _native_context_type_mismatch(
 
 
 class AsterContext:
+    _type: ContextType
     _native: object
 
     def __init__(
@@ -96,28 +99,34 @@ class AsterContext:
                 raise _unsupported_context_type(candidate_type)
 
     def push_back(self, response: GeminiResponse) -> None:
-        match self._native:
+        native = self._checked_native()
+
+        match native:
             case GeminiContext() as context:
                 context.push_back(response.content)
 
             case _:
-                raise _unsupported_native_context(self._native)
+                raise _unsupported_native_context(native)
 
     def emplace_message(self, message: AsterMessage) -> None:
-        match self._native:
+        native = self._checked_native()
+
+        match native:
             case GeminiContext() as context:
                 context.push_back(
                     aster_message_to_gemini_content(message)
                 )
 
             case _:
-                raise _unsupported_native_context(self._native)
+                raise _unsupported_native_context(native)
 
     def emplace_function_replies(
         self,
         turn: AsterFunctionReplyTurn,
     ) -> None:
-        match self._native:
+        native = self._checked_native()
+
+        match native:
             case GeminiContext() as context:
                 context.push_back(
                     aster_function_reply_turn_to_gemini_content(
@@ -126,32 +135,42 @@ class AsterContext:
                 )
 
             case _:
-                raise _unsupported_native_context(self._native)
+                raise _unsupported_native_context(native)
 
     def pop_back(self) -> None:
-        match self._native:
+        native = self._checked_native()
+
+        match native:
             case GeminiContext() as context:
                 _ = context.pop_back()
 
             case _:
-                raise _unsupported_native_context(self._native)
+                raise _unsupported_native_context(native)
+
+    @property
+    def context_type(self) -> ContextType:
+        return self._type
 
     @property
     def gemini(self) -> GeminiContext:
-        match self._native:
+        native = self._checked_native()
+
+        match native:
             case GeminiContext() as context:
                 return context
 
             case _:
-                raise _unsupported_native_context(self._native)
+                raise _unsupported_native_context(native)
 
     def __len__(self) -> int:
-        match self._native:
+        native = self._checked_native()
+
+        match native:
             case GeminiContext() as context:
                 return len(context)
 
             case _:
-                raise _unsupported_native_context(self._native)
+                raise _unsupported_native_context(native)
 
 
 __all__ = [
@@ -160,4 +179,5 @@ __all__ = [
     "AsterFunctionReplyTurn",
     "AsterMessage",
     "AsterRole",
+    "ContextType",
 ]
