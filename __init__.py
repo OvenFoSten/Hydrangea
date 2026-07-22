@@ -5,12 +5,19 @@ from .gemini import (
     GeminiResponse,
     ReasoningEffort,
 )
-from .context import AsterContext, ContextType
+from .context import (
+    AsterContext,
+    AsterNativeContext,
+    AsterNativeResponse,
+    ContextType,
+)
 from .general import EmbClient, EmbClientConfig
 from .tool import AsterTool
 
 __all__ = [
     "AsterContext",
+    "AsterNativeContext",
+    "AsterNativeResponse",
     "AsterTool",
     "EmbClient",
     "EmbClientConfig",
