@@ -4,6 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+from ..config import AsterLLMConfig
 from ..context import (
     AsterContext,
     AsterFunctionReply,
@@ -13,7 +14,6 @@ from ..context import (
 )
 from ..gateway import GatewayType
 from ..tool import AsterTool
-from .config import GeminiConfig
 from .llm import Gemini, ReasoningEffort
 from .response import GeminiResponse
 
@@ -34,9 +34,10 @@ def smoke_add(arguments: SmokeArguments) -> SmokeResult:
 def main() -> None:
     _ = load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-    smoke_config = GeminiConfig(
+    smoke_config = AsterLLMConfig(
         api_key=os.environ["ASTER_GEMINI_API_KEY"],
         model_name=os.environ["ASTER_GEMINI_MODEL_NAME"],
+        base_url=os.environ.get("ASTER_GEMINI_BASE_URL", ""),
     )
     smoke_tool = AsterTool(
         name="smoke_add",

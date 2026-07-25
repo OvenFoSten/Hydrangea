@@ -1,6 +1,6 @@
+from .config import AsterLLMConfig
 from .gemini import (
     Gemini,
-    GeminiConfig,
     GeminiContext,
     GeminiResponse,
 )
@@ -21,6 +21,7 @@ from .tool import AsterTool
 __all__ = [
     "AsterContext",
     "AsterLLM",
+    "AsterLLMConfig",
     "AsterNativeContent",
     "AsterNativeContext",
     "AsterNativeLLM",
@@ -29,7 +30,6 @@ __all__ = [
     "EmbClientConfig",
     "GatewayType",
     "Gemini",
-    "GeminiConfig",
     "GeminiContext",
     "GeminiResponse",
     "ReasoningEffort",

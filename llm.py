@@ -1,9 +1,9 @@
 from enum import Enum
 from typing import TypeAlias
 
+from .config import AsterLLMConfig
 from .context import AsterContext, AsterNativeContent
 from .gateway import GatewayType
-from .gemini.config import GeminiConfig
 from .gemini.llm import (
     Gemini,
     ReasoningEffort as GeminiReasoningEffort,
@@ -117,7 +117,7 @@ class AsterLLM:
         gateway_type: GatewayType,
         native: AsterNativeLLM | None = None,
         *,
-        config: GeminiConfig | None = None,
+        config: AsterLLMConfig | None = None,
         tools: list[AsterTool] | None = None,
     ) -> None:
         candidate_type: object = gateway_type
