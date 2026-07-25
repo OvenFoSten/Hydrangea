@@ -5,6 +5,7 @@ from google.genai import types
 from ..message import (
     AsterFunctionReplyTurn,
     AsterMessage,
+    AsterToolCall,
     AsterRole,
 )
 
@@ -42,6 +43,26 @@ def aster_function_reply_turn_to_gemini_content(
     )
 
 
+def gemini_function_call_to_aster_tool_call(
+    function_call: types.FunctionCall,
+) -> AsterToolCall:
+    if function_call.name is None:
+        raise ValueError("Gemini returned a function call without a name.")
+
+    arguments: dict[str, object] = {}
+    if function_call.args is not None:
+        arguments = {
+            name: value
+            for name, value in function_call.args.items()
+        }
+
+    return AsterToolCall(
+        call_id=function_call.id,
+        name=function_call.name,
+        arguments=arguments,
+    )
+
+
 class GeminiContext:
     _contents: list[types.Content]
 
@@ -58,6 +79,26 @@ class GeminiContext:
 
     def pop_back(self) -> types.Content:
         return self._contents.pop()
+
+    def last_tool_calls(self) -> list[AsterToolCall] | None:
+        if not self._contents:
+            return None
+
+        parts = self._contents[-1].parts
+        if not parts:
+            return None
+
+        tool_calls: list[AsterToolCall] = []
+        for part in parts:
+            function_call = part.function_call
+            if function_call is not None:
+                tool_calls.append(
+                    gemini_function_call_to_aster_tool_call(
+                        function_call
+                    )
+                )
+
+        return tool_calls or None
 
     @property
     def contents(self) -> list[types.Content]:

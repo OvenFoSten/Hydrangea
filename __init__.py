@@ -9,6 +9,7 @@ from .context import (
     AsterContext,
     AsterNativeContent,
     AsterNativeContext,
+    AsterToolCall,
 )
 from .gateway import GatewayType
 from .llm import (
@@ -25,6 +26,7 @@ __all__ = [
     "AsterNativeContent",
     "AsterNativeContext",
     "AsterTool",
+    "AsterToolCall",
     "EmbClient",
     "EmbClientConfig",
     "GatewayType",

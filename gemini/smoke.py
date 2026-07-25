@@ -55,12 +55,20 @@ def main() -> None:
         raise AssertionError(
             "Smoke test failed: default context is not empty."
         )
+    if smoke_context.last_tool_calls() is not None:
+        raise AssertionError(
+            "Smoke test failed: empty context returned tool calls."
+        )
     smoke_context.emplace_message(
         AsterMessage(
             role=AsterRole.user,
             content="Use the provided tool to complete the target.",
         )
     )
+    if smoke_context.last_tool_calls() is not None:
+        raise AssertionError(
+            "Smoke test failed: user message returned tool calls."
+        )
     smoke_target = (
         "Call smoke_add exactly once with left=20 and right=22. "
         "After receiving the function response, state the returned total."
@@ -71,9 +79,10 @@ def main() -> None:
         context=smoke_context.gemini,
         effort=ReasoningEffort.minimal,
     )
-    smoke_response = GeminiResponse(smoke_content)
+    smoke_context.push_back(smoke_content)
+    smoke_tool_calls = smoke_context.last_tool_calls()
 
-    if not smoke_response.tool_calls:
+    if smoke_tool_calls is None:
         raise AssertionError(
             "Smoke test failed: Gemini returned no function call."
         )
@@ -81,7 +90,7 @@ def main() -> None:
     smoke_call = next(
         (
             call
-            for call in smoke_response.tool_calls
+            for call in smoke_tool_calls
             if call.name == smoke_tool.name
         ),
         None,
@@ -90,19 +99,12 @@ def main() -> None:
         raise AssertionError(
             "Smoke test failed: Gemini did not call smoke_add."
         )
-    if smoke_call.args is None:
-        raise AssertionError(
-            "Smoke test failed: smoke_add received no arguments."
-        )
-    if smoke_call.id is None:
+    if smoke_call.call_id is None:
         raise AssertionError(
             "Smoke test failed: smoke_add function call has no ID."
         )
 
-    smoke_arguments: dict[str, object] = {
-        name: value
-        for name, value in smoke_call.args.items()
-    }
+    smoke_arguments = smoke_call.arguments
     expected_arguments: dict[str, object] = {
         "left": 20,
         "right": 22,
@@ -124,18 +126,21 @@ def main() -> None:
             f"Smoke test failed: expected 42, got {smoke_result.total}."
         )
 
-    smoke_context.push_back(smoke_content)
     smoke_context.emplace_function_replies(
         AsterFunctionReplyTurn(
             replies=(
                 AsterFunctionReply(
-                    call_id=smoke_call.id,
+                    call_id=smoke_call.call_id,
                     name=smoke_tool.name,
                     content=smoke_result,
                 ),
             )
         )
     )
+    if smoke_context.last_tool_calls() is not None:
+        raise AssertionError(
+            "Smoke test failed: context searched past the latest message."
+        )
 
     second_request_context = smoke_context.gemini.contents
     context_roles = [content.role for content in second_request_context]
@@ -155,7 +160,7 @@ def main() -> None:
             "Smoke test failed: no Gemini FunctionResponse in context."
         )
     sent_reply = reply_parts[0].function_response
-    if sent_reply.id != smoke_call.id:
+    if sent_reply.id != smoke_call.call_id:
         raise AssertionError(
             "Smoke test failed: FunctionResponse call ID was not preserved."
         )
@@ -174,6 +179,7 @@ def main() -> None:
         effort=ReasoningEffort.minimal,
     )
     final_response = GeminiResponse(final_content)
+    smoke_context.push_back(final_content)
     if final_response.tool_calls:
         raise AssertionError(
             "Smoke test failed: Gemini called the tool more than once."
@@ -182,6 +188,10 @@ def main() -> None:
         raise AssertionError(
             "Smoke test failed: final response did not contain 42: "
             f"{final_response.output!r}."
+        )
+    if smoke_context.last_tool_calls() is not None:
+        raise AssertionError(
+            "Smoke test failed: final message returned tool calls."
         )
 
     print("Gemini function call:", smoke_call)

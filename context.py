@@ -13,6 +13,7 @@ from .message import (
     AsterFunctionReplyTurn,
     AsterMessage,
     AsterRole,
+    AsterToolCall,
 )
 
 AsterNativeContext: TypeAlias = GeminiContext
@@ -187,6 +188,16 @@ class AsterContext:
             case _:
                 raise _unsupported_native_context(native)
 
+    def last_tool_calls(self) -> list[AsterToolCall] | None:
+        native = self._checked_native()
+
+        match native:
+            case GeminiContext() as context:
+                return context.last_tool_calls()
+
+            case _:
+                raise _unsupported_native_context(native)
+
     @property
     def gateway_type(self) -> GatewayType:
         return self._gateway_type
@@ -221,4 +232,5 @@ __all__ = [
     "AsterNativeContent",
     "AsterNativeContext",
     "AsterRole",
+    "AsterToolCall",
 ]
