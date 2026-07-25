@@ -8,12 +8,11 @@ from .context import (
     AsterContext,
     AsterNativeContext,
     AsterNativeResponse,
-    ContextType,
 )
+from .gateway import GatewayType
 from .llm import (
     AsterLLM,
     AsterNativeLLM,
-    LLMType,
     ReasoningEffort,
 )
 from .general import EmbClient, EmbClientConfig
@@ -28,11 +27,10 @@ __all__ = [
     "AsterTool",
     "EmbClient",
     "EmbClientConfig",
-    "ContextType",
+    "GatewayType",
     "Gemini",
     "GeminiConfig",
     "GeminiContext",
     "GeminiResponse",
-    "LLMType",
     "ReasoningEffort",
 ]

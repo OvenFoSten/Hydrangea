@@ -1,6 +1,6 @@
-from enum import Enum
 from typing import TypeAlias
 
+from .gateway import GatewayType
 from .gemini.context import (
     GeminiContext,
     aster_function_reply_turn_to_gemini_content,
@@ -18,15 +18,24 @@ AsterNativeContext: TypeAlias = GeminiContext
 AsterNativeResponse: TypeAlias = GeminiResponse
 
 
-class ContextType(Enum):
-    gemini = GeminiContext
-
-
-def _unsupported_context_type(context_type: object) -> TypeError:
+def _unsupported_gateway_type(gateway_type: object) -> TypeError:
     return TypeError(
-        "Unsupported context type: "
-        f"{context_type!r}"
+        "Unsupported gateway type: "
+        f"{gateway_type!r}"
     )
+
+
+def _native_context_type_for_gateway(
+    gateway_type: GatewayType,
+) -> type[object]:
+    candidate: object = gateway_type
+
+    match candidate:
+        case GatewayType.gemini:
+            return GeminiContext
+
+        case _:
+            raise _unsupported_gateway_type(candidate)
 
 
 def _unsupported_native_context(native: object) -> TypeError:
@@ -37,13 +46,14 @@ def _unsupported_native_context(native: object) -> TypeError:
 
 
 def _native_context_type_mismatch(
-    context_type: ContextType,
+    gateway_type: GatewayType,
     native: object,
 ) -> TypeError:
+    native_type = _native_context_type_for_gateway(gateway_type)
     return TypeError(
         "Native context does not match "
-        f"{context_type.name!r}: expected "
-        f"{context_type.value.__name__}, got "
+        f"{gateway_type.name!r}: expected "
+        f"{native_type.__name__}, got "
         f"{type(native).__name__}."
     )
 
@@ -60,19 +70,21 @@ def _unsupported_native_context_response_pair(
 
 
 class AsterContext:
-    _type: ContextType
+    _gateway_type: GatewayType
     _native: object
 
     def __init__(
         self,
-        context_type: ContextType,
+        gateway_type: GatewayType,
         native: AsterNativeContext | None = None,
     ) -> None:
-        candidate_type: object = context_type
+        candidate_type: object = gateway_type
 
         match candidate_type:
-            case ContextType() as checked_type:
-                native_type = checked_type.value
+            case GatewayType() as checked_gateway_type:
+                native_type = _native_context_type_for_gateway(
+                    checked_gateway_type
+                )
                 candidate_native: object = (
                     native_type()
                     if native is None
@@ -83,35 +95,37 @@ class AsterContext:
                     native_type,
                 ):
                     raise _native_context_type_mismatch(
-                        checked_type,
+                        checked_gateway_type,
                         candidate_native,
                     )
 
-                self._type = checked_type
+                self._gateway_type = checked_gateway_type
                 self._native = candidate_native
 
             case _:
-                raise _unsupported_context_type(candidate_type)
+                raise _unsupported_gateway_type(candidate_type)
 
     def _checked_native(self) -> object:
-        candidate_type: object = self._type
+        candidate_type: object = self._gateway_type
 
         match candidate_type:
-            case ContextType() as checked_type:
-                native_type = checked_type.value
+            case GatewayType() as checked_gateway_type:
+                native_type = _native_context_type_for_gateway(
+                    checked_gateway_type
+                )
                 if not isinstance(
                     self._native,
                     native_type,
                 ):
                     raise _native_context_type_mismatch(
-                        checked_type,
+                        checked_gateway_type,
                         self._native,
                     )
 
                 return self._native
 
             case _:
-                raise _unsupported_context_type(candidate_type)
+                raise _unsupported_gateway_type(candidate_type)
 
     def push_back(
         self,
@@ -173,8 +187,8 @@ class AsterContext:
                 raise _unsupported_native_context(native)
 
     @property
-    def context_type(self) -> ContextType:
-        return self._type
+    def gateway_type(self) -> GatewayType:
+        return self._gateway_type
 
     @property
     def gemini(self) -> GeminiContext:
@@ -206,5 +220,4 @@ __all__ = [
     "AsterNativeContext",
     "AsterNativeResponse",
     "AsterRole",
-    "ContextType",
 ]
