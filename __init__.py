@@ -13,7 +13,6 @@ from .context import (
 from .gateway import GatewayType
 from .llm import (
     AsterLLM,
-    AsterNativeLLM,
     ReasoningEffort,
 )
 from .general import EmbClient, EmbClientConfig
@@ -25,7 +24,6 @@ __all__ = [
     "AsterLLMConfig",
     "AsterNativeContent",
     "AsterNativeContext",
-    "AsterNativeLLM",
     "AsterTool",
     "EmbClient",
     "EmbClientConfig",
