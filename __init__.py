@@ -11,12 +11,19 @@ from .context import (
     AsterNativeResponse,
     ContextType,
 )
+from .llm import (
+    AsterLLM,
+    AsterNativeLLM,
+    LLMType,
+)
 from .general import EmbClient, EmbClientConfig
 from .tool import AsterTool
 
 __all__ = [
     "AsterContext",
+    "AsterLLM",
     "AsterNativeContext",
+    "AsterNativeLLM",
     "AsterNativeResponse",
     "AsterTool",
     "EmbClient",
@@ -26,5 +33,6 @@ __all__ = [
     "GeminiConfig",
     "GeminiContext",
     "GeminiResponse",
+    "LLMType",
     "ReasoningEffort",
 ]
