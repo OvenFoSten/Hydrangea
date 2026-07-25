@@ -70,12 +70,31 @@ class GeminiContext:
         self,
         contents: Iterable[types.Content] | None = None,
     ) -> None:
-        self._contents = list(
-            contents if contents is not None else ()
+        self._contents = []
+        for content in contents if contents is not None else ():
+            self.push_back(content)
+
+    def push_back(self, content: object) -> None:
+        if not isinstance(content, types.Content):
+            raise TypeError(
+                "GeminiContext requires types.Content, got "
+                f"{type(content).__name__}."
+            )
+
+        self._contents.append(content)
+
+    def emplace_message(self, message: AsterMessage) -> None:
+        self.push_back(
+            aster_message_to_gemini_content(message)
         )
 
-    def push_back(self, content: types.Content) -> None:
-        self._contents.append(content)
+    def emplace_function_replies(
+        self,
+        turn: AsterFunctionReplyTurn,
+    ) -> None:
+        self.push_back(
+            aster_function_reply_turn_to_gemini_content(turn)
+        )
 
     def pop_back(self) -> types.Content:
         return self._contents.pop()

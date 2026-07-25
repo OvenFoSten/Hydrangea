@@ -1,13 +1,9 @@
-from typing import TypeAlias
+from typing import Protocol, TypeAlias
 
 from google.genai import types
 
 from .gateway import GatewayType
-from .gemini.context import (
-    GeminiContext,
-    aster_function_reply_turn_to_gemini_content,
-    aster_message_to_gemini_content,
-)
+from .gemini.context import GeminiContext
 from .message import (
     AsterFunctionReply,
     AsterFunctionReplyTurn,
@@ -20,60 +16,32 @@ AsterNativeContext: TypeAlias = GeminiContext
 AsterNativeContent: TypeAlias = types.Content
 
 
-def _unsupported_gateway_type(gateway_type: object) -> TypeError:
-    return TypeError(
-        "Unsupported gateway type: "
-        f"{gateway_type!r}"
-    )
+class _ContextImplementation(Protocol):
+    def push_back(self, content: object) -> None:
+        ...
 
+    def emplace_message(self, message: AsterMessage) -> None:
+        ...
 
-def _native_context_type_for_gateway(
-    gateway_type: GatewayType,
-) -> type[object]:
-    candidate: object = gateway_type
+    def emplace_function_replies(
+        self,
+        turn: AsterFunctionReplyTurn,
+    ) -> None:
+        ...
 
-    match candidate:
-        case GatewayType.gemini:
-            return GeminiContext
+    def pop_back(self) -> object:
+        ...
 
-        case _:
-            raise _unsupported_gateway_type(candidate)
+    def last_tool_calls(self) -> list[AsterToolCall] | None:
+        ...
 
-
-def _unsupported_native_context(native: object) -> TypeError:
-    return TypeError(
-        "Unsupported native context: "
-        f"{type(native).__name__}"
-    )
-
-
-def _native_context_type_mismatch(
-    gateway_type: GatewayType,
-    native: object,
-) -> TypeError:
-    native_type = _native_context_type_for_gateway(gateway_type)
-    return TypeError(
-        "Native context does not match "
-        f"{gateway_type.name!r}: expected "
-        f"{native_type.__name__}, got "
-        f"{type(native).__name__}."
-    )
-
-
-def _unsupported_native_context_content_pair(
-    native: object,
-    content: object,
-) -> TypeError:
-    return TypeError(
-        "Unsupported native context/content pair: "
-        f"{type(native).__name__} <- "
-        f"{type(content).__name__}."
-    )
+    def __len__(self) -> int:
+        ...
 
 
 class AsterContext:
     _gateway_type: GatewayType
-    _native: object
+    _native: _ContextImplementation
 
     def __init__(
         self,
@@ -81,122 +49,50 @@ class AsterContext:
         native: AsterNativeContext | None = None,
     ) -> None:
         candidate_type: object = gateway_type
+        candidate_native: object = native
 
         match candidate_type:
-            case GatewayType() as checked_gateway_type:
-                native_type = _native_context_type_for_gateway(
-                    checked_gateway_type
-                )
-                candidate_native: object = (
-                    native_type()
-                    if native is None
-                    else native
-                )
-                if not isinstance(
-                    candidate_native,
-                    native_type,
-                ):
-                    raise _native_context_type_mismatch(
-                        checked_gateway_type,
-                        candidate_native,
+            case GatewayType.gemini:
+                if candidate_native is None:
+                    context = GeminiContext()
+                elif isinstance(candidate_native, GeminiContext):
+                    context = candidate_native
+                else:
+                    raise TypeError(
+                        "Native context does not match 'gemini': "
+                        "expected GeminiContext, got "
+                        f"{type(candidate_native).__name__}."
                     )
 
-                self._gateway_type = checked_gateway_type
-                self._native = candidate_native
+                self._gateway_type = GatewayType.gemini
+                self._native = context
 
             case _:
-                raise _unsupported_gateway_type(candidate_type)
-
-    def _checked_native(self) -> object:
-        candidate_type: object = self._gateway_type
-
-        match candidate_type:
-            case GatewayType() as checked_gateway_type:
-                native_type = _native_context_type_for_gateway(
-                    checked_gateway_type
+                raise TypeError(
+                    "Unsupported gateway type: "
+                    f"{candidate_type!r}"
                 )
-                if not isinstance(
-                    self._native,
-                    native_type,
-                ):
-                    raise _native_context_type_mismatch(
-                        checked_gateway_type,
-                        self._native,
-                    )
-
-                return self._native
-
-            case _:
-                raise _unsupported_gateway_type(candidate_type)
 
     def push_back(
         self,
         content: AsterNativeContent,
     ) -> None:
-        native = self._checked_native()
-        candidate_content: object = content
-
-        match native, candidate_content:
-            case (
-                GeminiContext() as context,
-                types.Content() as gemini_content,
-            ):
-                context.push_back(gemini_content)
-
-            case _:
-                raise _unsupported_native_context_content_pair(
-                    native,
-                    candidate_content,
-                )
+        self._native.push_back(content)
 
     def emplace_message(self, message: AsterMessage) -> None:
-        native = self._checked_native()
-
-        match native:
-            case GeminiContext() as context:
-                context.push_back(
-                    aster_message_to_gemini_content(message)
-                )
-
-            case _:
-                raise _unsupported_native_context(native)
+        self._native.emplace_message(message)
 
     def emplace_function_replies(
         self,
         turn: AsterFunctionReplyTurn,
     ) -> None:
-        native = self._checked_native()
-
-        match native:
-            case GeminiContext() as context:
-                context.push_back(
-                    aster_function_reply_turn_to_gemini_content(
-                        turn
-                    )
-                )
-
-            case _:
-                raise _unsupported_native_context(native)
+        self._native.emplace_function_replies(turn)
 
     def pop_back(self) -> None:
-        native = self._checked_native()
-
-        match native:
-            case GeminiContext() as context:
-                _ = context.pop_back()
-
-            case _:
-                raise _unsupported_native_context(native)
+        _ = self._native.pop_back()
 
     def last_tool_calls(self) -> list[AsterToolCall] | None:
-        native = self._checked_native()
-
-        match native:
-            case GeminiContext() as context:
-                return context.last_tool_calls()
-
-            case _:
-                raise _unsupported_native_context(native)
+        return self._native.last_tool_calls()
 
     @property
     def gateway_type(self) -> GatewayType:
@@ -204,24 +100,16 @@ class AsterContext:
 
     @property
     def gemini(self) -> GeminiContext:
-        native = self._checked_native()
+        if not isinstance(self._native, GeminiContext):
+            raise TypeError(
+                "Context implementation is not GeminiContext: "
+                f"{type(self._native).__name__}."
+            )
 
-        match native:
-            case GeminiContext() as context:
-                return context
-
-            case _:
-                raise _unsupported_native_context(native)
+        return self._native
 
     def __len__(self) -> int:
-        native = self._checked_native()
-
-        match native:
-            case GeminiContext() as context:
-                return len(context)
-
-            case _:
-                raise _unsupported_native_context(native)
+        return len(self._native)
 
 
 __all__ = [
