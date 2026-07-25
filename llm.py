@@ -4,7 +4,10 @@ from typing import TypeAlias
 from .context import AsterContext, AsterNativeResponse
 from .gateway import GatewayType
 from .gemini.config import GeminiConfig
-from .gemini.llm import Gemini, ReasoningEffort
+from .gemini.llm import (
+    Gemini,
+    ReasoningEffort as GeminiReasoningEffort,
+)
 from .tool import AsterTool
 
 AsterNativeLLM: TypeAlias = Gemini
@@ -199,7 +202,9 @@ class AsterLLM:
                 return gemini.invoke(
                     target,
                     context.gemini,
-                    effort,
+                    _reasoning_effort_to_gemini_reasoning_effort(
+                        effort
+                    ),
                 )
 
             case _:
