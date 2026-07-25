@@ -1,6 +1,7 @@
 from .config import AsterLLMConfig
 from .gemini import (
     Gemini,
+    GeminiConfig,
     GeminiContext,
     GeminiResponse,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "EmbClientConfig",
     "GatewayType",
     "Gemini",
+    "GeminiConfig",
     "GeminiContext",
     "GeminiResponse",
     "ReasoningEffort",

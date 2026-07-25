@@ -4,6 +4,9 @@ from typing import TypeAlias
 from .config import AsterLLMConfig
 from .context import AsterContext, AsterNativeContent
 from .gateway import GatewayType
+from .gemini.config import (
+    _aster_llm_config_to_gemini_config,
+)
 from .gemini.llm import (
     Gemini,
     ReasoningEffort as GeminiReasoningEffort,
@@ -134,9 +137,12 @@ class AsterLLM:
                         if native is None:
                             if config is None:
                                 raise _gemini_config_required()
+                            gemini_config = (
+                                _aster_llm_config_to_gemini_config(config)
+                            )
                             candidate_native = Gemini(
-                                config,
-                                tools,
+                                config=gemini_config,
+                                tools=tools,
                             )
                         else:
                             candidate_native = native

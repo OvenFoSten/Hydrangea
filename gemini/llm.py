@@ -4,7 +4,7 @@ from google import genai
 from google.genai import types
 
 
-from ..config import AsterLLMConfig
+from .config import GeminiConfig
 from .context import GeminiContext
 from ..tool import AsterTool
 from ..prompt import AsterPrompt
@@ -34,13 +34,13 @@ def _gemini_aster_tool_to_declaration(tool:AsterTool)->types.FunctionDeclaration
 
 class Gemini:
     _prompt:AsterPrompt
-    _config:AsterLLMConfig
+    _config:GeminiConfig
     _client:genai.Client
     _tool_declarations: list[types.FunctionDeclaration]
     
     def __init__(
         self,
-        config: AsterLLMConfig,
+        config: GeminiConfig,
         tools: list[AsterTool] | None = None,
     ) -> None:
         self._prompt = AsterPrompt(_TEMP_PROMPT)
