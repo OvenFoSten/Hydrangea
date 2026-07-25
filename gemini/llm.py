@@ -8,7 +8,6 @@ from .config import GeminiConfig
 from .context import GeminiContext
 from ..tool import AsterTool
 from ..prompt import AsterPrompt
-from .response import GeminiResponse
 
 
 _TEMP_PROMPT:str = """
@@ -60,7 +59,7 @@ class Gemini:
         target: str,
         context: GeminiContext,
         effort: ReasoningEffort,
-    ) -> GeminiResponse:
+    ) -> types.Content:
         prompt = self._prompt.render({
             "target":target
         })
@@ -92,11 +91,13 @@ class Gemini:
             ),
         )
         
-        if not response.candidates:
+        candidates = response.candidates
+        if not candidates:
             raise ValueError("No candidates from Google, please check the API availability.")
         
-        if not response.candidates[0].content:
+        content = candidates[0].content
+        if content is None:
             raise ValueError("No content from Google, please check the API availability.")
         
                 
-        return GeminiResponse(response.candidates[0].content)
+        return content
