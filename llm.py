@@ -3,10 +3,20 @@ from typing import TypeAlias
 
 from .context import AsterContext, AsterNativeResponse
 from .gemini.config import GeminiConfig
-from .gemini.llm import Gemini, ReasoningEffort
+from .gemini.llm import (
+    Gemini,
+    ReasoningEffort as GeminiReasoningEffort,
+)
 from .tool import AsterTool
 
 AsterNativeLLM: TypeAlias = Gemini
+
+
+class ReasoningEffort(Enum):
+    minimal = "minimal"
+    low = "low"
+    medium = "medium"
+    high = "high"
 
 
 class LLMType(Enum):
@@ -18,6 +28,37 @@ def _unsupported_llm_type(llm_type: object) -> TypeError:
         "Unsupported LLM type: "
         f"{llm_type!r}"
     )
+
+
+def _unsupported_reasoning_effort(
+    effort: object,
+) -> TypeError:
+    return TypeError(
+        "Unsupported reasoning effort: "
+        f"{effort!r}"
+    )
+
+
+def _reasoning_effort_to_gemini_reasoning_effort(
+    effort: ReasoningEffort,
+) -> GeminiReasoningEffort:
+    candidate: object = effort
+
+    match candidate:
+        case ReasoningEffort.minimal:
+            return GeminiReasoningEffort.minimal
+
+        case ReasoningEffort.low:
+            return GeminiReasoningEffort.low
+
+        case ReasoningEffort.medium:
+            return GeminiReasoningEffort.medium
+
+        case ReasoningEffort.high:
+            return GeminiReasoningEffort.high
+
+        case _:
+            raise _unsupported_reasoning_effort(candidate)
 
 
 def _unsupported_native_llm(native: object) -> TypeError:
@@ -127,7 +168,9 @@ class AsterLLM:
                 return gemini.invoke(
                     target,
                     context.gemini,
-                    effort,
+                    _reasoning_effort_to_gemini_reasoning_effort(
+                        effort
+                    ),
                 )
 
             case _:
