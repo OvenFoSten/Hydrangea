@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import TypeAlias
 
-from .context import AsterContext, AsterNativeResponse
+from .context import AsterContext, AsterNativeContent
 from .gateway import GatewayType
 from .gemini.config import GeminiConfig
 from .gemini.llm import (
@@ -188,7 +188,7 @@ class AsterLLM:
         target: str,
         context: AsterContext,
         effort: ReasoningEffort,
-    ) -> AsterNativeResponse:
+    ) -> AsterNativeContent:
         native = self._checked_native()
 
         if context.gateway_type is not self._gateway_type:

@@ -6,8 +6,8 @@ from .gemini import (
 )
 from .context import (
     AsterContext,
+    AsterNativeContent,
     AsterNativeContext,
-    AsterNativeResponse,
 )
 from .gateway import GatewayType
 from .llm import (
@@ -21,9 +21,9 @@ from .tool import AsterTool
 __all__ = [
     "AsterContext",
     "AsterLLM",
+    "AsterNativeContent",
     "AsterNativeContext",
     "AsterNativeLLM",
-    "AsterNativeResponse",
     "AsterTool",
     "EmbClient",
     "EmbClientConfig",

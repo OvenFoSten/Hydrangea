@@ -15,6 +15,7 @@ from ..gateway import GatewayType
 from ..tool import AsterTool
 from .config import GeminiConfig
 from .llm import Gemini, ReasoningEffort
+from .response import GeminiResponse
 
 
 class SmokeArguments(BaseModel):
@@ -65,11 +66,12 @@ def main() -> None:
         "After receiving the function response, state the returned total."
     )
 
-    smoke_response = smoke_gemini.invoke(
+    smoke_content = smoke_gemini.invoke(
         target=smoke_target,
         context=smoke_context.gemini,
         effort=ReasoningEffort.minimal,
     )
+    smoke_response = GeminiResponse(smoke_content)
 
     if not smoke_response.tool_calls:
         raise AssertionError(
@@ -122,7 +124,7 @@ def main() -> None:
             f"Smoke test failed: expected 42, got {smoke_result.total}."
         )
 
-    smoke_context.push_back(smoke_response)
+    smoke_context.push_back(smoke_content)
     smoke_context.emplace_function_replies(
         AsterFunctionReplyTurn(
             replies=(
@@ -142,7 +144,7 @@ def main() -> None:
             "Smoke test failed: unexpected context roles: "
             f"{context_roles}."
         )
-    if second_request_context[1] is not smoke_response.content:
+    if second_request_context[1] is not smoke_content:
         raise AssertionError(
             "Smoke test failed: model Content was reconstructed."
         )
@@ -166,11 +168,12 @@ def main() -> None:
             "Smoke test failed: FunctionResponse payload was not preserved."
         )
 
-    final_response = smoke_gemini.invoke(
+    final_content = smoke_gemini.invoke(
         target=smoke_target,
         context=smoke_context.gemini,
         effort=ReasoningEffort.minimal,
     )
+    final_response = GeminiResponse(final_content)
     if final_response.tool_calls:
         raise AssertionError(
             "Smoke test failed: Gemini called the tool more than once."

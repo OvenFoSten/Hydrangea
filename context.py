@@ -1,12 +1,13 @@
 from typing import TypeAlias
 
+from google.genai import types
+
 from .gateway import GatewayType
 from .gemini.context import (
     GeminiContext,
     aster_function_reply_turn_to_gemini_content,
     aster_message_to_gemini_content,
 )
-from .gemini.response import GeminiResponse
 from .message import (
     AsterFunctionReply,
     AsterFunctionReplyTurn,
@@ -15,7 +16,7 @@ from .message import (
 )
 
 AsterNativeContext: TypeAlias = GeminiContext
-AsterNativeResponse: TypeAlias = GeminiResponse
+AsterNativeContent: TypeAlias = types.Content
 
 
 def _unsupported_gateway_type(gateway_type: object) -> TypeError:
@@ -58,14 +59,14 @@ def _native_context_type_mismatch(
     )
 
 
-def _unsupported_native_context_response_pair(
+def _unsupported_native_context_content_pair(
     native: object,
-    response: object,
+    content: object,
 ) -> TypeError:
     return TypeError(
-        "Unsupported native context/response pair: "
+        "Unsupported native context/content pair: "
         f"{type(native).__name__} <- "
-        f"{type(response).__name__}."
+        f"{type(content).__name__}."
     )
 
 
@@ -129,22 +130,22 @@ class AsterContext:
 
     def push_back(
         self,
-        response: AsterNativeResponse,
+        content: AsterNativeContent,
     ) -> None:
         native = self._checked_native()
-        candidate_response: object = response
+        candidate_content: object = content
 
-        match native, candidate_response:
+        match native, candidate_content:
             case (
                 GeminiContext() as context,
-                GeminiResponse() as gemini_response,
+                types.Content() as gemini_content,
             ):
-                context.push_back(gemini_response.content)
+                context.push_back(gemini_content)
 
             case _:
-                raise _unsupported_native_context_response_pair(
+                raise _unsupported_native_context_content_pair(
                     native,
-                    candidate_response,
+                    candidate_content,
                 )
 
     def emplace_message(self, message: AsterMessage) -> None:
@@ -217,7 +218,7 @@ __all__ = [
     "AsterFunctionReply",
     "AsterFunctionReplyTurn",
     "AsterMessage",
+    "AsterNativeContent",
     "AsterNativeContext",
-    "AsterNativeResponse",
     "AsterRole",
 ]
