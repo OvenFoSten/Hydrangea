@@ -1,3 +1,4 @@
+from .config import AsterLLMConfig
 from .gemini import (
     Gemini,
     GeminiConfig,
@@ -21,6 +22,7 @@ from .tool import AsterTool
 __all__ = [
     "AsterContext",
     "AsterLLM",
+    "AsterLLMConfig",
     "AsterNativeContent",
     "AsterNativeContext",
     "AsterNativeLLM",
