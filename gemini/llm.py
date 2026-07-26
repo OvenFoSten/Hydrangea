@@ -11,7 +11,7 @@ from ..context import ContextImplementation
 from ..gateway import GatewayType
 from ..prompt import AsterPrompt
 from ..reasoning import ReasoningEffort as AsterReasoningEffort
-from ..tool import AsterTool
+from ..tool import AsterToolDeclaration
 
 
 _TEMP_PROMPT: str = """
@@ -44,17 +44,17 @@ def _aster_reasoning_effort_to_gemini_thinking_level(
             )
 
 
-def _gemini_aster_tool_to_declaration(
-    tool: AsterTool,
+def _aster_tool_declaration_to_gemini_declaration(
+    declaration: AsterToolDeclaration,
 ) -> types.FunctionDeclaration:
     return types.FunctionDeclaration(
-        name=tool.name,
-        description=tool.description,
+        name=declaration.name,
+        description=declaration.description,
         parameters_json_schema=(
-            tool.args_schema.model_json_schema()
+            declaration.args_schema.model_json_schema()
         ),
         response_json_schema=(
-            tool.return_schema.model_json_schema()
+            declaration.return_schema.model_json_schema()
         ),
     )
 
@@ -68,7 +68,9 @@ class Gemini:
     def __init__(
         self,
         config: GeminiConfig,
-        tools: list[AsterTool] | None = None,
+        tool_declarations: (
+            list[AsterToolDeclaration] | None
+        ) = None,
     ) -> None:
         self._prompt = AsterPrompt(_TEMP_PROMPT)
         self._config = config
@@ -76,19 +78,23 @@ class Gemini:
             api_key=self._config.api_key
         )
         self._tool_declarations = [
-            _gemini_aster_tool_to_declaration(tool)
-            for tool in tools or []
+            _aster_tool_declaration_to_gemini_declaration(
+                declaration
+            )
+            for declaration in tool_declarations or []
         ]
 
     @classmethod
     def from_aster_config(
         cls,
         config: AsterLLMConfig,
-        tools: list[AsterTool] | None = None,
+        tool_declarations: (
+            list[AsterToolDeclaration] | None
+        ) = None,
     ) -> "Gemini":
         return cls(
             config=_aster_llm_config_to_gemini_config(config),
-            tools=tools,
+            tool_declarations=tool_declarations,
         )
 
     @property
