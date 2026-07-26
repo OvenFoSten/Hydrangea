@@ -16,6 +16,13 @@ class AsterMessage:
 
 
 @dataclass(frozen=True)
+class AsterToolCall:
+    call_id: str | None
+    name: str
+    arguments: dict[str, object]
+
+
+@dataclass(frozen=True)
 class AsterFunctionReply:
     call_id: str | None
     name: str
