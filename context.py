@@ -1,4 +1,4 @@
-from typing import Protocol, TypeAlias, TypeVar
+from typing import Protocol, TypeAlias
 
 from google.genai import types
 
@@ -15,10 +15,8 @@ from .message import (
 AsterNativeContext: TypeAlias = GeminiContext
 AsterNativeContent: TypeAlias = types.Content
 
-_NativeContextT = TypeVar("_NativeContextT")
 
-
-class _ContextImplementation(Protocol):
+class ContextImplementation(Protocol):
     def push_back(self, content: object) -> None:
         ...
 
@@ -43,7 +41,7 @@ class _ContextImplementation(Protocol):
 
 class AsterContext:
     _gateway_type: GatewayType
-    _native: _ContextImplementation
+    _native: ContextImplementation
 
     def __init__(
         self,
@@ -96,23 +94,13 @@ class AsterContext:
     def last_tool_calls(self) -> list[AsterToolCall] | None:
         return self._native.last_tool_calls()
 
-    def require_native(
-        self,
-        native_type: type[_NativeContextT],
-    ) -> _NativeContextT:
-        candidate: object = self._native
-        if not isinstance(candidate, native_type):
-            raise TypeError(
-                "Native context does not match requested type: "
-                f"expected {native_type.__name__}, got "
-                f"{type(candidate).__name__}."
-            )
-
-        return candidate
-
     @property
     def gateway_type(self) -> GatewayType:
         return self._gateway_type
+
+    @property
+    def implementation(self) -> ContextImplementation:
+        return self._native
 
     def __len__(self) -> int:
         return len(self._native)

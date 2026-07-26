@@ -7,7 +7,7 @@ from .config import (
 )
 from .context import GeminiContext
 from ..config import AsterLLMConfig
-from ..context import AsterContext
+from ..context import ContextImplementation
 from ..gateway import GatewayType
 from ..prompt import AsterPrompt
 from ..reasoning import ReasoningEffort as AsterReasoningEffort
@@ -98,10 +98,17 @@ class Gemini:
     def invoke(
         self,
         target: str,
-        context: AsterContext,
+        context: ContextImplementation,
         effort: AsterReasoningEffort,
     ) -> types.Content:
-        gemini_context = context.require_native(GeminiContext)
+        if not isinstance(context, GeminiContext):
+            raise TypeError(
+                "Context implementation does not match Gemini: "
+                "expected GeminiContext, got "
+                f"{type(context).__name__}."
+            )
+
+        gemini_context = context
         thinking_level = (
             _aster_reasoning_effort_to_gemini_thinking_level(
                 effort

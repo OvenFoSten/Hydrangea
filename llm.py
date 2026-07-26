@@ -1,7 +1,11 @@
 from typing import Protocol
 
 from .config import AsterLLMConfig
-from .context import AsterContext, AsterNativeContent
+from .context import (
+    AsterContext,
+    AsterNativeContent,
+    ContextImplementation,
+)
 from .gateway import GatewayType
 from .gemini.llm import Gemini
 from .reasoning import ReasoningEffort
@@ -16,7 +20,7 @@ class _LLMImplementation(Protocol):
     def invoke(
         self,
         target: str,
-        context: AsterContext,
+        context: ContextImplementation,
         effort: ReasoningEffort,
     ) -> AsterNativeContent:
         ...
@@ -57,7 +61,7 @@ class AsterLLM:
     ) -> AsterNativeContent:
         return self._native.invoke(
             target=target,
-            context=context,
+            context=context.implementation,
             effort=effort,
         )
 
