@@ -4,6 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+from ..config import AsterLLMConfig
 from ..context import (
     AsterContext,
     AsterFunctionReply,
@@ -12,9 +13,9 @@ from ..context import (
     AsterRole,
 )
 from ..gateway import GatewayType
+from ..llm import AsterLLM, ReasoningEffort
 from ..tool import AsterTool
-from .config import GeminiConfig
-from .llm import Gemini, ReasoningEffort
+from .context import GeminiContext
 from .response import GeminiResponse
 
 
@@ -34,9 +35,10 @@ def smoke_add(arguments: SmokeArguments) -> SmokeResult:
 def main() -> None:
     _ = load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-    smoke_config = GeminiConfig(
+    smoke_config = AsterLLMConfig(
         api_key=os.environ["ASTER_GEMINI_API_KEY"],
         model_name=os.environ["ASTER_GEMINI_MODEL_NAME"],
+        base_url="",
     )
     smoke_tool = AsterTool(
         name="smoke_add",
@@ -46,11 +48,16 @@ def main() -> None:
         return_schema=SmokeResult,
     )
 
-    smoke_gemini = Gemini(
+    smoke_llm = AsterLLM(
+        gateway_type=GatewayType.gemini,
         config=smoke_config,
         tools=[smoke_tool],
     )
-    smoke_context = AsterContext(GatewayType.gemini)
+    smoke_native_context = GeminiContext()
+    smoke_context = AsterContext(
+        gateway_type=GatewayType.gemini,
+        native=smoke_native_context,
+    )
     if len(smoke_context) != 0:
         raise AssertionError(
             "Smoke test failed: default context is not empty."
@@ -74,9 +81,9 @@ def main() -> None:
         "After receiving the function response, state the returned total."
     )
 
-    smoke_content = smoke_gemini.invoke(
+    smoke_content = smoke_llm.invoke(
         target=smoke_target,
-        context=smoke_context.gemini,
+        context=smoke_context,
         effort=ReasoningEffort.minimal,
     )
     smoke_context.push_back(smoke_content)
@@ -142,7 +149,7 @@ def main() -> None:
             "Smoke test failed: context searched past the latest message."
         )
 
-    second_request_context = smoke_context.gemini.contents
+    second_request_context = smoke_native_context.contents
     context_roles = [content.role for content in second_request_context]
     if context_roles != ["user", "model", "user"]:
         raise AssertionError(
@@ -173,9 +180,9 @@ def main() -> None:
             "Smoke test failed: FunctionResponse payload was not preserved."
         )
 
-    final_content = smoke_gemini.invoke(
+    final_content = smoke_llm.invoke(
         target=smoke_target,
-        context=smoke_context.gemini,
+        context=smoke_context,
         effort=ReasoningEffort.minimal,
     )
     final_response = GeminiResponse(final_content)

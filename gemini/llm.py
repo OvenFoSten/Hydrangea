@@ -1,43 +1,70 @@
-from enum import Enum
-
 from google import genai
 from google.genai import types
 
-
-from .config import GeminiConfig
+from .config import (
+    GeminiConfig,
+    _aster_llm_config_to_gemini_config,
+)
 from .context import GeminiContext
-from ..tool import AsterTool
+from ..config import AsterLLMConfig
+from ..context import AsterContext
+from ..gateway import GatewayType
 from ..prompt import AsterPrompt
+from ..reasoning import ReasoningEffort as AsterReasoningEffort
+from ..tool import AsterTool
 
 
-_TEMP_PROMPT:str = """
+_TEMP_PROMPT: str = """
 You are an agent that can think and take actions to achieve a target.
 """
 
-class ReasoningEffort(Enum):
-    minimal = types.ThinkingLevel.MINIMAL
-    low = types.ThinkingLevel.LOW
-    medium = types.ThinkingLevel.MEDIUM
-    high = types.ThinkingLevel.HIGH
 
-def _gemini_aster_tool_to_declaration(tool:AsterTool)->types.FunctionDeclaration:
+def _aster_reasoning_effort_to_gemini_thinking_level(
+    effort: AsterReasoningEffort,
+) -> types.ThinkingLevel:
+    candidate: object = effort
+
+    match candidate:
+        case AsterReasoningEffort.minimal:
+            return types.ThinkingLevel.MINIMAL
+
+        case AsterReasoningEffort.low:
+            return types.ThinkingLevel.LOW
+
+        case AsterReasoningEffort.medium:
+            return types.ThinkingLevel.MEDIUM
+
+        case AsterReasoningEffort.high:
+            return types.ThinkingLevel.HIGH
+
+        case _:
+            raise TypeError(
+                "Unsupported reasoning effort: "
+                f"{candidate!r}"
+            )
+
+
+def _gemini_aster_tool_to_declaration(
+    tool: AsterTool,
+) -> types.FunctionDeclaration:
     return types.FunctionDeclaration(
-            name=tool.name,
-            description=tool.description,
-            parameters_json_schema=(
-                tool.args_schema.model_json_schema()
-            ),
-            response_json_schema=(
-                tool.return_schema.model_json_schema()
-            ),
-        )
+        name=tool.name,
+        description=tool.description,
+        parameters_json_schema=(
+            tool.args_schema.model_json_schema()
+        ),
+        response_json_schema=(
+            tool.return_schema.model_json_schema()
+        ),
+    )
+
 
 class Gemini:
-    _prompt:AsterPrompt
-    _config:GeminiConfig
-    _client:genai.Client
+    _prompt: AsterPrompt
+    _config: GeminiConfig
+    _client: genai.Client
     _tool_declarations: list[types.FunctionDeclaration]
-    
+
     def __init__(
         self,
         config: GeminiConfig,
@@ -48,56 +75,80 @@ class Gemini:
         self._client = genai.Client(
             api_key=self._config.api_key
         )
-
         self._tool_declarations = [
             _gemini_aster_tool_to_declaration(tool)
             for tool in tools or []
         ]
-        
+
+    @classmethod
+    def from_aster_config(
+        cls,
+        config: AsterLLMConfig,
+        tools: list[AsterTool] | None = None,
+    ) -> "Gemini":
+        return cls(
+            config=_aster_llm_config_to_gemini_config(config),
+            tools=tools,
+        )
+
+    @property
+    def gateway_type(self) -> GatewayType:
+        return GatewayType.gemini
+
     def invoke(
         self,
         target: str,
-        context: GeminiContext,
-        effort: ReasoningEffort,
+        context: AsterContext,
+        effort: AsterReasoningEffort,
     ) -> types.Content:
+        gemini_context = context.require_native(GeminiContext)
+        thinking_level = (
+            _aster_reasoning_effort_to_gemini_thinking_level(
+                effort
+            )
+        )
         prompt = self._prompt.render({
-            "target":target
+            "target": target
         })
         sdk_context: list[types.ContentUnionDict] = []
-        sdk_context.extend(context.contents)
+        sdk_context.extend(gemini_context.contents)
 
         response = self._client.models.generate_content(
             model=self._config.model_name,
             contents=sdk_context,
             config=types.GenerateContentConfig(
                 thinking_config=types.ThinkingConfig(
-                thinking_level=effort.value,
-                include_thoughts=True,
+                    thinking_level=thinking_level,
+                    include_thoughts=True,
                 ),
                 system_instruction=prompt,
-
                 tools=(
-                [
-                    types.Tool(function_declarations=(
-                            self._tool_declarations
+                    [
+                        types.Tool(
+                            function_declarations=(
+                                self._tool_declarations
+                            )
                         )
-                    )
-                ]
-                if self._tool_declarations
-                else None
+                    ]
+                    if self._tool_declarations
+                    else None
                 ),
-
-                temperature=0.7
+                temperature=0.7,
             ),
         )
-        
+
         candidates = response.candidates
         if not candidates:
-            raise ValueError("No candidates from Google, please check the API availability.")
-        
+            raise ValueError(
+                "No candidates from Google, "
+                "please check the API availability."
+            )
+
         content = candidates[0].content
         if content is None:
-            raise ValueError("No content from Google, please check the API availability.")
-        
-                
+            raise ValueError(
+                "No content from Google, "
+                "please check the API availability."
+            )
+
         return content
