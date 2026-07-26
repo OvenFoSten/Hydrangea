@@ -16,7 +16,7 @@ AsterNativeContext: TypeAlias = GeminiContext
 AsterNativeContent: TypeAlias = types.Content
 
 
-class _ContextImplementation(Protocol):
+class ContextImplementation(Protocol):
     def push_back(self, content: object) -> None:
         ...
 
@@ -41,7 +41,7 @@ class _ContextImplementation(Protocol):
 
 class AsterContext:
     _gateway_type: GatewayType
-    _native: _ContextImplementation
+    _native: ContextImplementation
 
     def __init__(
         self,
@@ -99,13 +99,7 @@ class AsterContext:
         return self._gateway_type
 
     @property
-    def gemini(self) -> GeminiContext:
-        if not isinstance(self._native, GeminiContext):
-            raise TypeError(
-                "Context implementation is not GeminiContext: "
-                f"{type(self._native).__name__}."
-            )
-
+    def implementation(self) -> ContextImplementation:
         return self._native
 
     def __len__(self) -> int:
