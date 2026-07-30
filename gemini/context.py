@@ -1,4 +1,6 @@
 from collections.abc import Iterable
+from collections.abc import Mapping
+from typing import cast
 
 from google.genai import types
 
@@ -51,10 +53,11 @@ def gemini_function_call_to_aster_tool_call(
 
     arguments: dict[str, object] = {}
     if function_call.args is not None:
-        arguments = {
-            name: value
-            for name, value in function_call.args.items()
-        }
+        arguments = dict(
+        cast(
+            Mapping[str, object],
+            function_call.args,
+        ))
 
     return AsterToolCall(
         call_id=function_call.id,
