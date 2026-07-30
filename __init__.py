@@ -17,7 +17,7 @@ from .llm import (
     ReasoningEffort,
 )
 from .general import EmbClient, EmbClientConfig
-from .tool import AsterTool
+from .tool import AsterTool, AsterToolDeclaration
 
 __all__ = [
     "AsterContext",
@@ -26,6 +26,7 @@ __all__ = [
     "AsterNativeContent",
     "AsterNativeContext",
     "AsterTool",
+    "AsterToolDeclaration",
     "AsterToolCall",
     "EmbClient",
     "EmbClientConfig",

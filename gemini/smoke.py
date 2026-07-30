@@ -14,7 +14,7 @@ from ..context import (
 )
 from ..gateway import GatewayType
 from ..llm import AsterLLM, ReasoningEffort
-from ..tool import AsterTool
+from ..tool import AsterTool, AsterToolDeclaration
 from .context import GeminiContext
 from .response import GeminiResponse
 
@@ -40,12 +40,15 @@ def main() -> None:
         model_name=os.environ["ASTER_GEMINI_MODEL_NAME"],
         base_url="",
     )
-    smoke_tool = AsterTool(
+    smoke_declaration = AsterToolDeclaration(
         name="smoke_add",
         description="Add two integers and return their total.",
-        func=smoke_add,
         args_schema=SmokeArguments,
         return_schema=SmokeResult,
+    )
+    smoke_tool = AsterTool(
+        declaration=smoke_declaration,
+        func=smoke_add,
     )
 
     smoke_llm = AsterLLM(
@@ -98,7 +101,7 @@ def main() -> None:
         (
             call
             for call in smoke_tool_calls
-            if call.name == smoke_tool.name
+            if call.name == smoke_declaration.name
         ),
         None,
     )
@@ -138,7 +141,7 @@ def main() -> None:
             replies=(
                 AsterFunctionReply(
                     call_id=smoke_call.call_id,
-                    name=smoke_tool.name,
+                    name=smoke_declaration.name,
                     content=smoke_result,
                 ),
             )
@@ -171,7 +174,7 @@ def main() -> None:
         raise AssertionError(
             "Smoke test failed: FunctionResponse call ID was not preserved."
         )
-    if sent_reply.name != smoke_tool.name:
+    if sent_reply.name != smoke_declaration.name:
         raise AssertionError(
             "Smoke test failed: FunctionResponse name was not preserved."
         )

@@ -43,7 +43,10 @@ class AsterLLM:
             case GatewayType.gemini:
                 self._native = Gemini.from_aster_config(
                     config=config,
-                    tools=checked_tools,
+                    tool_declarations=[
+                        tool.declaration
+                        for tool in checked_tools
+                    ],
                 )
                 self._tools = checked_tools
 
