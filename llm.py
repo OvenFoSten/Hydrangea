@@ -9,7 +9,7 @@ from .context import (
 from .gateway import GatewayType
 from .gemini.llm import Gemini
 from .reasoning import ReasoningEffort
-from .tool import AsterTool
+from .tool import AsterToolDeclaration
 
 
 class _LLMImplementation(Protocol):
@@ -22,33 +22,26 @@ class _LLMImplementation(Protocol):
         target: str,
         context: ContextImplementation,
         effort: ReasoningEffort,
+        tool_declarations: list[AsterToolDeclaration],
     ) -> AsterNativeContent:
         ...
 
 
 class AsterLLM:
     _native: _LLMImplementation
-    _tools: list[AsterTool]
 
     def __init__(
         self,
         gateway_type: GatewayType,
         config: AsterLLMConfig,
-        tools: list[AsterTool] | None = None,
     ) -> None:
         candidate_type: object = gateway_type
-        checked_tools: list[AsterTool] = list(tools or [])
 
         match candidate_type:
             case GatewayType.gemini:
                 self._native = Gemini.from_aster_config(
                     config=config,
-                    tool_declarations=[
-                        tool.declaration
-                        for tool in checked_tools
-                    ],
                 )
-                self._tools = checked_tools
 
             case _:
                 raise TypeError(
@@ -61,21 +54,18 @@ class AsterLLM:
         target: str,
         context: AsterContext,
         effort: ReasoningEffort,
+        tool_declarations: list[AsterToolDeclaration],
     ) -> AsterNativeContent:
         return self._native.invoke(
             target=target,
             context=context.implementation,
             effort=effort,
+            tool_declarations=tool_declarations,
         )
 
     @property
     def gateway_type(self) -> GatewayType:
         return self._native.gateway_type
-
-    @property
-    def tools(self) -> list[AsterTool]:
-        return self._tools.copy()
-
 
 __all__ = [
     "AsterLLM",
