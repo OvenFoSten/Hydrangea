@@ -54,7 +54,7 @@ def _aster_tool_declaration_to_gemini_declaration(
             declaration.args_schema.model_json_schema()
         ),
         response_json_schema=(
-            declaration.return_schema.model_json_schema()
+            declaration.reply_schema.model_json_schema()
         ),
     )
 

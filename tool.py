@@ -9,7 +9,7 @@ class AsterToolDeclaration:
     name: str
     description: str
     args_schema: type[BaseModel]
-    return_schema: type[BaseModel]
+    reply_schema: type[BaseModel]  # Reply content sent back to the model.
 
 
 @dataclass(frozen=True)
@@ -20,13 +20,18 @@ class AsterTool:
     def invoke(
         self,
         arguments: dict[str, object],
-    ) -> BaseModel:
+    ) -> object:
         args = self.declaration.args_schema.model_validate(
             arguments
         )
-        result = self.func(args)
-        return self.declaration.return_schema.model_validate(
-            result
+        return self.func(args)
+
+    def validate_reply(
+        self,
+        content: object,
+    ) -> BaseModel:
+        return self.declaration.reply_schema.model_validate(
+            content
         )
 
 

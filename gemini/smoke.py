@@ -46,7 +46,7 @@ def main() -> None:
         name="smoke_add",
         description="Add two integers and return their total.",
         args_schema=SmokeArguments,
-        return_schema=SmokeResult,
+        reply_schema=SmokeResult,
     )
     smoke_tool = AsterTool(
         declaration=smoke_declaration,
