@@ -4,6 +4,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+from tool_registry import AsterToolRegistry
+
 from ..config import AsterLLMConfig
 from ..context import (
     AsterContext,
@@ -50,12 +52,13 @@ def main() -> None:
         declaration=smoke_declaration,
         func=smoke_add,
     )
+    smoke_registry = AsterToolRegistry()
 
     smoke_llm = AsterLLM(
         gateway_type=GatewayType.gemini,
         config=smoke_config,
-        tools=[smoke_tool],
     )
+    smoke_registry.add_tool(smoke_tool)
     smoke_native_context = GeminiContext()
     smoke_context = AsterContext(
         gateway_type=GatewayType.gemini,
@@ -88,6 +91,7 @@ def main() -> None:
         target=smoke_target,
         context=smoke_context,
         effort=ReasoningEffort.minimal,
+        tool_declarations=smoke_registry.declarations(),
     )
     smoke_context.push_back(smoke_content)
     smoke_tool_calls = smoke_context.last_tool_calls()
@@ -125,7 +129,7 @@ def main() -> None:
             f"{smoke_arguments}."
         )
 
-    smoke_result = smoke_tool.invoke(smoke_arguments)
+    smoke_result = smoke_registry.invoke_tool(smoke_call)
 
     if not isinstance(smoke_result, SmokeResult):
         raise AssertionError(
@@ -187,6 +191,7 @@ def main() -> None:
         target=smoke_target,
         context=smoke_context,
         effort=ReasoningEffort.minimal,
+        tool_declarations=smoke_registry.declarations(),
     )
     final_response = GeminiResponse(final_content)
     smoke_context.push_back(final_content)

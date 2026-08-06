@@ -63,38 +63,24 @@ class Gemini:
     _prompt: AsterPrompt
     _config: GeminiConfig
     _client: genai.Client
-    _tool_declarations: list[types.FunctionDeclaration]
 
     def __init__(
         self,
         config: GeminiConfig,
-        tool_declarations: (
-            list[AsterToolDeclaration] | None
-        ) = None,
     ) -> None:
         self._prompt = AsterPrompt(_TEMP_PROMPT)
         self._config = config
         self._client = genai.Client(
             api_key=self._config.api_key
         )
-        self._tool_declarations = [
-            _aster_tool_declaration_to_gemini_declaration(
-                declaration
-            )
-            for declaration in tool_declarations or []
-        ]
 
     @classmethod
     def from_aster_config(
         cls,
         config: AsterLLMConfig,
-        tool_declarations: (
-            list[AsterToolDeclaration] | None
-        ) = None,
     ) -> "Gemini":
         return cls(
             config=_aster_llm_config_to_gemini_config(config),
-            tool_declarations=tool_declarations,
         )
 
     @property
@@ -106,6 +92,7 @@ class Gemini:
         target: str,
         context: ContextImplementation,
         effort: AsterReasoningEffort,
+        tool_declarations: list[AsterToolDeclaration],
     ) -> types.Content:
         if not isinstance(context, GeminiContext):
             raise TypeError(
@@ -125,6 +112,12 @@ class Gemini:
         })
         sdk_context: list[types.ContentUnionDict] = []
         sdk_context.extend(gemini_context.contents)
+        gemini_tool_declarations = [
+            _aster_tool_declaration_to_gemini_declaration(
+                declaration
+            )
+            for declaration in tool_declarations
+        ]
 
         response = self._client.models.generate_content(
             model=self._config.model_name,
@@ -139,11 +132,11 @@ class Gemini:
                     [
                         types.Tool(
                             function_declarations=(
-                                self._tool_declarations
+                                gemini_tool_declarations
                             )
                         )
                     ]
-                    if self._tool_declarations
+                    if gemini_tool_declarations
                     else None
                 ),
                 temperature=0.7,
