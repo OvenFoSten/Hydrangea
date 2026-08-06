@@ -68,7 +68,7 @@ def main() -> None:
         raise AssertionError(
             "Smoke test failed: default context is not empty."
         )
-    if smoke_context.last_tool_calls() is not None:
+    if smoke_context.latest_tool_calls() is not None:
         raise AssertionError(
             "Smoke test failed: empty context returned tool calls."
         )
@@ -78,7 +78,7 @@ def main() -> None:
             content="Use the provided tool to complete the target.",
         )
     )
-    if smoke_context.last_tool_calls() is not None:
+    if smoke_context.latest_tool_calls() is not None:
         raise AssertionError(
             "Smoke test failed: user message returned tool calls."
         )
@@ -94,7 +94,7 @@ def main() -> None:
         tool_declarations=smoke_registry.declarations(),
     )
     smoke_context.push_back(smoke_content)
-    smoke_tool_calls = smoke_context.last_tool_calls()
+    smoke_tool_calls = smoke_context.latest_tool_calls()
 
     if smoke_tool_calls is None:
         raise AssertionError(
@@ -151,7 +151,7 @@ def main() -> None:
             )
         )
     )
-    if smoke_context.last_tool_calls() is not None:
+    if smoke_context.latest_tool_calls() is not None:
         raise AssertionError(
             "Smoke test failed: context searched past the latest message."
         )
@@ -204,7 +204,7 @@ def main() -> None:
             "Smoke test failed: final response did not contain 42: "
             f"{final_response.output!r}."
         )
-    if smoke_context.last_tool_calls() is not None:
+    if smoke_context.latest_tool_calls() is not None:
         raise AssertionError(
             "Smoke test failed: final message returned tool calls."
         )

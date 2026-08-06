@@ -91,7 +91,7 @@ class AsterContext:
     def pop_back(self) -> None:
         _ = self._native.pop_back()
 
-    def last_tool_calls(self) -> list[AsterToolCall] | None:
+    def latest_tool_calls(self) -> list[AsterToolCall] | None:
         return self._native.last_tool_calls()
 
     @property
