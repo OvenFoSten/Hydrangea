@@ -91,7 +91,7 @@ class GeminiContext:
             aster_message_to_gemini_content(message)
         )
 
-    def emplace_function_replies(
+    def emplace_function_reply_turn(
         self,
         turn: AsterFunctionReplyTurn,
     ) -> None:
