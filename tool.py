@@ -15,7 +15,7 @@ class AsterToolDeclaration:
 @dataclass(frozen=True)
 class AsterTool:
     declaration: AsterToolDeclaration
-    func: Callable[..., object]
+    func: Callable[..., object]  # Receives an args_schema-derived BaseModel.
 
     def invoke(
         self,
