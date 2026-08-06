@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Protocol, TypeAlias
 
 from google.genai import types
@@ -23,7 +24,7 @@ class ContextImplementation(Protocol):
     def emplace_message(self, message: AsterMessage) -> None:
         ...
 
-    def emplace_function_replies(
+    def emplace_function_reply_turn(
         self,
         turn: AsterFunctionReplyTurn,
     ) -> None:
@@ -84,9 +85,12 @@ class AsterContext:
 
     def emplace_function_replies(
         self,
-        turn: AsterFunctionReplyTurn,
+        replies: Sequence[AsterFunctionReply],
     ) -> None:
-        self._native.emplace_function_replies(turn)
+        turn = AsterFunctionReplyTurn(
+            replies=tuple(replies)
+        )
+        self._native.emplace_function_reply_turn(turn)
 
     def pop_back(self) -> None:
         _ = self._native.pop_back()
@@ -109,7 +113,6 @@ class AsterContext:
 __all__ = [
     "AsterContext",
     "AsterFunctionReply",
-    "AsterFunctionReplyTurn",
     "AsterMessage",
     "AsterNativeContent",
     "AsterNativeContext",

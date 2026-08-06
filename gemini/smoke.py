@@ -10,7 +10,6 @@ from ..config import AsterLLMConfig
 from ..context import (
     AsterContext,
     AsterFunctionReply,
-    AsterFunctionReplyTurn,
     AsterMessage,
     AsterRole,
 )
@@ -141,14 +140,12 @@ def main() -> None:
         )
 
     smoke_context.emplace_function_replies(
-        AsterFunctionReplyTurn(
-            replies=(
-                AsterFunctionReply(
-                    call_id=smoke_call.call_id,
-                    name=smoke_declaration.name,
-                    content=smoke_result,
-                ),
-            )
+        (
+            AsterFunctionReply(
+                call_id=smoke_call.call_id,
+                name=smoke_declaration.name,
+                content=smoke_result,
+            ),
         )
     )
     if smoke_context.last_tool_calls() is not None:
