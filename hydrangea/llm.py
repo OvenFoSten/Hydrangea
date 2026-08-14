@@ -38,7 +38,7 @@ class LLM:
     ) -> None:
         match gateway_type:
             case GatewayType.gemini:
-                self._native = Gemini.from_aster_config(
+                self._native = Gemini.from_config(
                     config=config,
                 )
 

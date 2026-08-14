@@ -19,7 +19,7 @@ You are an agent that can think and take actions to achieve a target.
 """
 
 
-def _aster_reasoning_effort_to_gemini_thinking_level(
+def _reasoning_effort_to_gemini_thinking_level(
     effort: ReasoningEffort,
 ) -> types.ThinkingLevel:
     candidate: object = effort
@@ -44,7 +44,7 @@ def _aster_reasoning_effort_to_gemini_thinking_level(
             )
 
 
-def _aster_tool_declaration_to_gemini_declaration(
+def _tool_declaration_to_gemini_declaration(
     declaration: ToolDeclaration,
 ) -> types.FunctionDeclaration:
     return types.FunctionDeclaration(
@@ -75,7 +75,7 @@ class Gemini:
         )
 
     @classmethod
-    def from_aster_config(
+    def from_config(
         cls,
         config: LLMConfig,
     ) -> "Gemini":
@@ -103,7 +103,7 @@ class Gemini:
 
         gemini_context = context
         thinking_level = (
-            _aster_reasoning_effort_to_gemini_thinking_level(
+            _reasoning_effort_to_gemini_thinking_level(
                 effort
             )
         )
@@ -113,7 +113,7 @@ class Gemini:
         sdk_context: list[types.ContentUnionDict] = []
         sdk_context.extend(gemini_context.contents)
         gemini_tool_declarations = [
-            _aster_tool_declaration_to_gemini_declaration(
+            _tool_declaration_to_gemini_declaration(
                 declaration
             )
             for declaration in tool_declarations
