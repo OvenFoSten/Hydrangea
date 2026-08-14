@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from typing import Protocol, TypeAlias
 
 from google.genai import types
+from typing_extensions import assert_never
 
 from .gateway import GatewayType
 from .gemini.context import GeminiContext
@@ -49,30 +50,20 @@ class Context:
         gateway_type: GatewayType,
         native: NativeContext | None = None,
     ) -> None:
-        candidate_type: object = gateway_type
-        candidate_native: object = native
-
-        match candidate_type:
+        match gateway_type:
             case GatewayType.gemini:
-                if candidate_native is None:
+                if native is None:
                     context = GeminiContext()
-                elif isinstance(candidate_native, GeminiContext):
-                    context = candidate_native
+                elif isinstance(native, GeminiContext):
+                    context = native
                 else:
-                    raise TypeError(
-                        "Native context does not match 'gemini': "
-                        "expected GeminiContext, got "
-                        f"{type(candidate_native).__name__}."
-                    )
+                    assert_never(native)
 
                 self._gateway_type = GatewayType.gemini
                 self._native = context
 
             case _:
-                raise TypeError(
-                    "Unsupported gateway type: "
-                    f"{candidate_type!r}"
-                )
+                assert_never(gateway_type)
 
     def push_back(
         self,
