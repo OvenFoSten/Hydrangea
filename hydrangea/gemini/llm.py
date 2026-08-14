@@ -1,5 +1,6 @@
 from google import genai
 from google.genai import types
+from typing_extensions import assert_never
 
 from .config import (
     GeminiConfig,
@@ -22,9 +23,8 @@ You are an agent that can think and take actions to achieve a target.
 def _reasoning_effort_to_gemini_thinking_level(
     effort: ReasoningEffort,
 ) -> types.ThinkingLevel:
-    candidate: object = effort
 
-    match candidate:
+    match effort:
         case ReasoningEffort.minimal:
             return types.ThinkingLevel.MINIMAL
 
@@ -38,10 +38,8 @@ def _reasoning_effort_to_gemini_thinking_level(
             return types.ThinkingLevel.HIGH
 
         case _:
-            raise TypeError(
-                "Unsupported reasoning effort: "
-                f"{candidate!r}"
-            )
+            assert_never(effort)
+            
 
 
 def _tool_declaration_to_gemini_declaration(
