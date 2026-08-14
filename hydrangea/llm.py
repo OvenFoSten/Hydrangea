@@ -1,4 +1,5 @@
 from typing import Protocol
+from typing_extensions import assert_never
 
 from .config import LLMConfig
 from .context import (
@@ -35,19 +36,14 @@ class LLM:
         gateway_type: GatewayType,
         config: LLMConfig,
     ) -> None:
-        candidate_type: object = gateway_type
-
-        match candidate_type:
+        match gateway_type:
             case GatewayType.gemini:
                 self._native = Gemini.from_aster_config(
                     config=config,
                 )
 
             case _:
-                raise TypeError(
-                    "Unsupported gateway type: "
-                    f"{candidate_type!r}"
-                )
+                assert_never(gateway_type)
 
     def invoke(
         self,
