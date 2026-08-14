@@ -46,8 +46,8 @@ def _tool_declaration_to_gemini_declaration(
     declaration: ToolDeclaration,
 ) -> types.FunctionDeclaration:
     return types.FunctionDeclaration(
-        name=declaration.name,
         description=declaration.description,
+        name=declaration.name,
         parameters_json_schema=(
             declaration.args_schema.model_json_schema()
         ),
