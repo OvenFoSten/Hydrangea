@@ -8,7 +8,7 @@ class GeminiConfig(BaseModel):
     model_name: str
 
 
-def _llm_config_to_gemini_config(
+def llm_config_to_gemini_config(
     config: LLMConfig,
 ) -> GeminiConfig:
     return GeminiConfig(

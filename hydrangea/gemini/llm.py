@@ -3,7 +3,7 @@ from google.genai import types
 
 from .config import (
     GeminiConfig,
-    _llm_config_to_gemini_config,
+    llm_config_to_gemini_config,
 )
 from .context import GeminiContext
 from ..config import LLMConfig
@@ -80,7 +80,7 @@ class Gemini:
         config: LLMConfig,
     ) -> "Gemini":
         return cls(
-            config=_llm_config_to_gemini_config(config),
+            config=llm_config_to_gemini_config(config),
         )
 
     @property
