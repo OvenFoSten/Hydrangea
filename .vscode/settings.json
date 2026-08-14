@@ -1,0 +1,34 @@
+{
+    "python.defaultInterpreterPath": "/home/ovenfosten/anaconda3/envs/Arisu/bin/python",
+    "python.useEnvironmentsExtension": true,
+    "python.condaPath": "/home/ovenfosten/anaconda3/bin/conda",
+    "python-envs.globalSearchPaths": [
+        "/home/ovenfosten/anaconda3/envs"
+    ],
+    "python.terminal.activateEnvironment": true,
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "python.analysis.typeCheckingMode": "standard",
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportExplicitAny": "warning",
+        "reportUnknownVariableType": "warning",
+        "reportUnknownMemberType": "warning",
+        "reportUnknownParameterType": "warning",
+        "reportUnknownArgumentType": "warning"
+    },
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ],
+    "python.languageServer": "None",
+    "cursorpyright.analysis.diagnosticSeverityOverrides": {
+        "reportExplicitAny": "warning",
+        "reportUnknownVariableType": "warning",
+        "reportUnknownMemberType": "warning",
+        "reportUnknownParameterType": "warning",
+        "reportUnknownArgumentType": "warning"
+    },
+    "cursorpyright.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ],
+    "cursorpyright.analysis.typeCheckingMode": "standard"
+}

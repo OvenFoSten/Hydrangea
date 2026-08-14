@@ -1,0 +1,28 @@
+{
+    "typeCheckingMode": "strict",
+    "pythonVersion": "3.10",
+    "pythonPlatform": "Linux",
+    "extraPaths": [
+        "."
+    ],
+    "strictListInference": true,
+    "strictDictionaryInference": true,
+    "strictSetInference": true,
+    "reportUninitializedInstanceVariable": "error",
+    "reportUnannotatedClassAttribute": "error",
+    "reportExplicitAny": "error",
+    "reportAny": "warning",
+    "reportUnknownVariableType": "warning",
+    "reportUnknownMemberType": "warning",
+    "reportUnknownParameterType": "warning",
+    "reportUnknownArgumentType": "warning",
+    "reportUnknownLambdaType": "warning",
+    "reportMissingTypeStubs": "warning",
+    "reportImportCycles": "warning",
+    "reportUnreachable": "error",
+    "reportUnusedCallResult": "warning",
+    "reportMatchNotExhaustive": "error",
+    "reportImplicitOverride": "warning",
+    "reportMissingSuperCall": "warning",
+    "reportUnsafeMultipleInheritance": "warning"
+}
