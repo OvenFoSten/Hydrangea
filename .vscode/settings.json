@@ -30,5 +30,6 @@
     "cursorpyright.analysis.extraPaths": [
         "${workspaceFolder}"
     ],
+    "cursorpyright.analysis.diagnosticMode": "workspace",
     "cursorpyright.analysis.typeCheckingMode": "standard"
 }
