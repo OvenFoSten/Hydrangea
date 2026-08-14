@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from ..config import AsterLLMConfig
+from ..config import LLMConfig
 
 
 class GeminiConfig(BaseModel):
@@ -8,8 +8,8 @@ class GeminiConfig(BaseModel):
     model_name: str
 
 
-def _aster_llm_config_to_gemini_config(
-    config: AsterLLMConfig,
+def _llm_config_to_gemini_config(
+    config: LLMConfig,
 ) -> GeminiConfig:
     return GeminiConfig(
         api_key=config.api_key,

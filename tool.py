@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 
 @dataclass(frozen=True)
-class AsterToolDeclaration:
+class ToolDeclaration:
     name: str
     description: str
     args_schema: type[BaseModel]
@@ -13,8 +13,8 @@ class AsterToolDeclaration:
 
 
 @dataclass(frozen=True)
-class AsterTool:
-    declaration: AsterToolDeclaration
+class Tool:
+    declaration: ToolDeclaration
     func: Callable[..., object]  # Receives an args_schema-derived BaseModel.
 
     def invoke(
@@ -35,4 +35,4 @@ class AsterTool:
         )
 
 
-__all__ = ["AsterTool", "AsterToolDeclaration"]
+__all__ = ["Tool", "ToolDeclaration"]

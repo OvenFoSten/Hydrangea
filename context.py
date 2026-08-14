@@ -6,48 +6,48 @@ from google.genai import types
 from .gateway import GatewayType
 from .gemini.context import GeminiContext
 from .message import (
-    AsterFunctionReply,
-    AsterFunctionReplyTurn,
-    AsterMessage,
-    AsterRole,
-    AsterToolCall,
+    FunctionReply,
+    FunctionReplyTurn,
+    Message,
+    Role,
+    ToolCall,
 )
 
-AsterNativeContext: TypeAlias = GeminiContext
-AsterNativeContent: TypeAlias = types.Content
+NativeContext: TypeAlias = GeminiContext
+NativeContent: TypeAlias = types.Content
 
 
 class ContextImplementation(Protocol):
     def push_back(self, content: object) -> None:
         ...
 
-    def emplace_message(self, message: AsterMessage) -> None:
+    def emplace_message(self, message: Message) -> None:
         ...
 
     def emplace_function_reply_turn(
         self,
-        turn: AsterFunctionReplyTurn,
+        turn: FunctionReplyTurn,
     ) -> None:
         ...
 
     def pop_back(self) -> object:
         ...
 
-    def last_tool_calls(self) -> list[AsterToolCall] | None:
+    def last_tool_calls(self) -> list[ToolCall] | None:
         ...
 
     def __len__(self) -> int:
         ...
 
 
-class AsterContext:
+class Context:
     _gateway_type: GatewayType
     _native: ContextImplementation
 
     def __init__(
         self,
         gateway_type: GatewayType,
-        native: AsterNativeContext | None = None,
+        native: NativeContext | None = None,
     ) -> None:
         candidate_type: object = gateway_type
         candidate_native: object = native
@@ -76,18 +76,18 @@ class AsterContext:
 
     def push_back(
         self,
-        content: AsterNativeContent,
+        content: NativeContent,
     ) -> None:
         self._native.push_back(content)
 
-    def emplace_message(self, message: AsterMessage) -> None:
+    def emplace_message(self, message: Message) -> None:
         self._native.emplace_message(message)
 
     def emplace_function_replies(
         self,
-        replies: Sequence[AsterFunctionReply],
+        replies: Sequence[FunctionReply],
     ) -> None:
-        turn = AsterFunctionReplyTurn(
+        turn = FunctionReplyTurn(
             replies=tuple(replies)
         )
         self._native.emplace_function_reply_turn(turn)
@@ -95,7 +95,7 @@ class AsterContext:
     def pop_back(self) -> None:
         _ = self._native.pop_back()
 
-    def latest_tool_calls(self) -> list[AsterToolCall] | None:
+    def latest_tool_calls(self) -> list[ToolCall] | None:
         return self._native.last_tool_calls()
 
     @property
@@ -111,11 +111,11 @@ class AsterContext:
 
 
 __all__ = [
-    "AsterContext",
-    "AsterFunctionReply",
-    "AsterMessage",
-    "AsterNativeContent",
-    "AsterNativeContext",
-    "AsterRole",
-    "AsterToolCall",
+    "Context",
+    "FunctionReply",
+    "Message",
+    "NativeContent",
+    "NativeContext",
+    "Role",
+    "ToolCall",
 ]

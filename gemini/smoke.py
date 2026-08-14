@@ -6,16 +6,16 @@ from pydantic import BaseModel
 
 from tool_registry import AsterToolRegistry
 
-from ..config import AsterLLMConfig
+from ..config import LLMConfig
 from ..context import (
-    AsterContext,
-    AsterFunctionReply,
-    AsterMessage,
-    AsterRole,
+    Context,
+    FunctionReply,
+    Message,
+    Role,
 )
 from ..gateway import GatewayType
-from ..llm import AsterLLM, ReasoningEffort
-from ..tool import AsterTool, AsterToolDeclaration
+from ..llm import LLM, ReasoningEffort
+from ..tool import Tool, ToolDeclaration
 from .context import GeminiContext
 from .response import GeminiResponse
 
@@ -36,30 +36,30 @@ def smoke_add(arguments: SmokeArguments) -> SmokeResult:
 def main() -> None:
     _ = load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-    smoke_config = AsterLLMConfig(
+    smoke_config = LLMConfig(
         api_key=os.environ["ASTER_GEMINI_API_KEY"],
         model_name=os.environ["ASTER_GEMINI_MODEL_NAME"],
         base_url="",
     )
-    smoke_declaration = AsterToolDeclaration(
+    smoke_declaration = ToolDeclaration(
         name="smoke_add",
         description="Add two integers and return their total.",
         args_schema=SmokeArguments,
         reply_schema=SmokeResult,
     )
-    smoke_tool = AsterTool(
+    smoke_tool = Tool(
         declaration=smoke_declaration,
         func=smoke_add,
     )
     smoke_registry = AsterToolRegistry()
 
-    smoke_llm = AsterLLM(
+    smoke_llm = LLM(
         gateway_type=GatewayType.gemini,
         config=smoke_config,
     )
     smoke_registry.add_tool(smoke_tool)
     smoke_native_context = GeminiContext()
-    smoke_context = AsterContext(
+    smoke_context = Context(
         gateway_type=GatewayType.gemini,
         native=smoke_native_context,
     )
@@ -72,8 +72,8 @@ def main() -> None:
             "Smoke test failed: empty context returned tool calls."
         )
     smoke_context.emplace_message(
-        AsterMessage(
-            role=AsterRole.user,
+        Message(
+            role=Role.user,
             content="Use the provided tool to complete the target.",
         )
     )
@@ -141,7 +141,7 @@ def main() -> None:
 
     smoke_context.emplace_function_replies(
         (
-            AsterFunctionReply(
+            FunctionReply(
                 call_id=smoke_call.call_id,
                 name=smoke_declaration.name,
                 content=smoke_result,

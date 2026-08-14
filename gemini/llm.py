@@ -3,15 +3,15 @@ from google.genai import types
 
 from .config import (
     GeminiConfig,
-    _aster_llm_config_to_gemini_config,
+    _llm_config_to_gemini_config,
 )
 from .context import GeminiContext
-from ..config import AsterLLMConfig
+from ..config import LLMConfig
 from ..context import ContextImplementation
 from ..gateway import GatewayType
-from ..prompt import AsterPrompt
-from ..reasoning import ReasoningEffort as AsterReasoningEffort
-from ..tool import AsterToolDeclaration
+from ..prompt import Prompt
+from ..reasoning import ReasoningEffort
+from ..tool import ToolDeclaration
 
 
 _TEMP_PROMPT: str = """
@@ -20,21 +20,21 @@ You are an agent that can think and take actions to achieve a target.
 
 
 def _aster_reasoning_effort_to_gemini_thinking_level(
-    effort: AsterReasoningEffort,
+    effort: ReasoningEffort,
 ) -> types.ThinkingLevel:
     candidate: object = effort
 
     match candidate:
-        case AsterReasoningEffort.minimal:
+        case ReasoningEffort.minimal:
             return types.ThinkingLevel.MINIMAL
 
-        case AsterReasoningEffort.low:
+        case ReasoningEffort.low:
             return types.ThinkingLevel.LOW
 
-        case AsterReasoningEffort.medium:
+        case ReasoningEffort.medium:
             return types.ThinkingLevel.MEDIUM
 
-        case AsterReasoningEffort.high:
+        case ReasoningEffort.high:
             return types.ThinkingLevel.HIGH
 
         case _:
@@ -45,7 +45,7 @@ def _aster_reasoning_effort_to_gemini_thinking_level(
 
 
 def _aster_tool_declaration_to_gemini_declaration(
-    declaration: AsterToolDeclaration,
+    declaration: ToolDeclaration,
 ) -> types.FunctionDeclaration:
     return types.FunctionDeclaration(
         name=declaration.name,
@@ -60,7 +60,7 @@ def _aster_tool_declaration_to_gemini_declaration(
 
 
 class Gemini:
-    _prompt: AsterPrompt
+    _prompt: Prompt
     _config: GeminiConfig
     _client: genai.Client
 
@@ -68,7 +68,7 @@ class Gemini:
         self,
         config: GeminiConfig,
     ) -> None:
-        self._prompt = AsterPrompt(_TEMP_PROMPT)
+        self._prompt = Prompt(_TEMP_PROMPT)
         self._config = config
         self._client = genai.Client(
             api_key=self._config.api_key
@@ -77,10 +77,10 @@ class Gemini:
     @classmethod
     def from_aster_config(
         cls,
-        config: AsterLLMConfig,
+        config: LLMConfig,
     ) -> "Gemini":
         return cls(
-            config=_aster_llm_config_to_gemini_config(config),
+            config=_llm_config_to_gemini_config(config),
         )
 
     @property
@@ -91,8 +91,8 @@ class Gemini:
         self,
         target: str,
         context: ContextImplementation,
-        effort: AsterReasoningEffort,
-        tool_declarations: list[AsterToolDeclaration],
+        effort: ReasoningEffort,
+        tool_declarations: list[ToolDeclaration],
     ) -> types.Content:
         if not isinstance(context, GeminiContext):
             raise TypeError(

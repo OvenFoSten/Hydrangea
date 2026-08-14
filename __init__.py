@@ -1,4 +1,4 @@
-from .config import AsterLLMConfig
+from .config import LLMConfig
 from .gemini import (
     Gemini,
     GeminiConfig,
@@ -6,28 +6,28 @@ from .gemini import (
     GeminiResponse,
 )
 from .context import (
-    AsterContext,
-    AsterNativeContent,
-    AsterNativeContext,
-    AsterToolCall,
+    Context,
+    NativeContent,
+    NativeContext,
+    ToolCall,
 )
 from .gateway import GatewayType
 from .llm import (
-    AsterLLM,
+    LLM,
     ReasoningEffort,
 )
 from .general import EmbClient, EmbClientConfig
-from .tool import AsterTool, AsterToolDeclaration
+from .tool import Tool, ToolDeclaration
 
 __all__ = [
-    "AsterContext",
-    "AsterLLM",
-    "AsterLLMConfig",
-    "AsterNativeContent",
-    "AsterNativeContext",
-    "AsterTool",
-    "AsterToolDeclaration",
-    "AsterToolCall",
+    "Context",
+    "LLM",
+    "LLMConfig",
+    "NativeContent",
+    "NativeContext",
+    "Tool",
+    "ToolDeclaration",
+    "ToolCall",
     "EmbClient",
     "EmbClientConfig",
     "GatewayType",

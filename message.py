@@ -4,34 +4,34 @@ from enum import Enum
 from pydantic import BaseModel
 
 
-class AsterRole(Enum):
+class Role(Enum):
     user = "user"
     assistant = "assistant"
 
 
 @dataclass(frozen=True)
-class AsterMessage:
-    role: AsterRole
+class Message:
+    role: Role
     content: str
 
 
 @dataclass(frozen=True)
-class AsterToolCall:
+class ToolCall:
     call_id: str | None
     name: str
     arguments: dict[str, object]
 
 
 @dataclass(frozen=True)
-class AsterFunctionReply:
+class FunctionReply:
     call_id: str | None
     name: str
     content: BaseModel
 
 
 @dataclass(frozen=True)
-class AsterFunctionReplyTurn:
-    replies: tuple[AsterFunctionReply, ...]
+class FunctionReplyTurn:
+    replies: tuple[FunctionReply, ...]
 
     def __post_init__(self) -> None:
         if not self.replies:

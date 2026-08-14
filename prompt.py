@@ -1,4 +1,4 @@
-class AsterPrompt:
+class Prompt:
     _insturction: str
 
     def __init__(self, instruction:str)->None:

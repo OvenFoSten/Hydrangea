@@ -1,15 +1,15 @@
 from typing import Protocol
 
-from .config import AsterLLMConfig
+from .config import LLMConfig
 from .context import (
-    AsterContext,
-    AsterNativeContent,
+    Context,
+    NativeContent,
     ContextImplementation,
 )
 from .gateway import GatewayType
 from .gemini.llm import Gemini
 from .reasoning import ReasoningEffort
-from .tool import AsterToolDeclaration
+from .tool import ToolDeclaration
 
 
 class _LLMImplementation(Protocol):
@@ -22,18 +22,18 @@ class _LLMImplementation(Protocol):
         target: str,
         context: ContextImplementation,
         effort: ReasoningEffort,
-        tool_declarations: list[AsterToolDeclaration],
-    ) -> AsterNativeContent:
+        tool_declarations: list[ToolDeclaration],
+    ) -> NativeContent:
         ...
 
 
-class AsterLLM:
+class LLM:
     _native: _LLMImplementation
 
     def __init__(
         self,
         gateway_type: GatewayType,
-        config: AsterLLMConfig,
+        config: LLMConfig,
     ) -> None:
         candidate_type: object = gateway_type
 
@@ -52,10 +52,10 @@ class AsterLLM:
     def invoke(
         self,
         target: str,
-        context: AsterContext,
+        context: Context,
         effort: ReasoningEffort,
-        tool_declarations: list[AsterToolDeclaration],
-    ) -> AsterNativeContent:
+        tool_declarations: list[ToolDeclaration],
+    ) -> NativeContent:
         return self._native.invoke(
             target=target,
             context=context.implementation,
@@ -68,6 +68,6 @@ class AsterLLM:
         return self._native.gateway_type
 
 __all__ = [
-    "AsterLLM",
+    "LLM",
     "ReasoningEffort",
 ]

@@ -5,21 +5,21 @@ from typing import cast
 from google.genai import types
 
 from ..message import (
-    AsterFunctionReplyTurn,
-    AsterMessage,
-    AsterToolCall,
-    AsterRole,
+    FunctionReplyTurn,
+    Message,
+    ToolCall,
+    Role,
 )
 
 
-_GEMINI_ROLE_MAPPING: dict[AsterRole, str] = {
-    AsterRole.user: "user",
-    AsterRole.assistant: "model",
+_GEMINI_ROLE_MAPPING: dict[Role, str] = {
+    Role.user: "user",
+    Role.assistant: "model",
 }
 
 
 def aster_message_to_gemini_content(
-    message: AsterMessage,
+    message: Message,
 ) -> types.Content:
     return types.Content(
         role=_GEMINI_ROLE_MAPPING[message.role],
@@ -28,7 +28,7 @@ def aster_message_to_gemini_content(
 
 
 def aster_function_reply_turn_to_gemini_content(
-    turn: AsterFunctionReplyTurn,
+    turn: FunctionReplyTurn,
 ) -> types.Content:
     return types.Content(
         role="user",
@@ -47,7 +47,7 @@ def aster_function_reply_turn_to_gemini_content(
 
 def gemini_function_call_to_aster_tool_call(
     function_call: types.FunctionCall,
-) -> AsterToolCall:
+) -> ToolCall:
     if function_call.name is None:
         raise ValueError("Gemini returned a function call without a name.")
 
@@ -59,7 +59,7 @@ def gemini_function_call_to_aster_tool_call(
             function_call.args,
         ))
 
-    return AsterToolCall(
+    return ToolCall(
         call_id=function_call.id,
         name=function_call.name,
         arguments=arguments,
@@ -86,14 +86,14 @@ class GeminiContext:
 
         self._contents.append(content)
 
-    def emplace_message(self, message: AsterMessage) -> None:
+    def emplace_message(self, message: Message) -> None:
         self.push_back(
             aster_message_to_gemini_content(message)
         )
 
     def emplace_function_reply_turn(
         self,
-        turn: AsterFunctionReplyTurn,
+        turn: FunctionReplyTurn,
     ) -> None:
         self.push_back(
             aster_function_reply_turn_to_gemini_content(turn)
@@ -102,7 +102,7 @@ class GeminiContext:
     def pop_back(self) -> types.Content:
         return self._contents.pop()
 
-    def last_tool_calls(self) -> list[AsterToolCall] | None:
+    def last_tool_calls(self) -> list[ToolCall] | None:
         if not self._contents:
             return None
 
@@ -110,7 +110,7 @@ class GeminiContext:
         if not parts:
             return None
 
-        tool_calls: list[AsterToolCall] = []
+        tool_calls: list[ToolCall] = []
         for part in parts:
             function_call = part.function_call
             if function_call is not None:
