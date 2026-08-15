@@ -18,7 +18,7 @@ _GEMINI_ROLE_MAPPING: dict[Role, str] = {
 }
 
 
-def aster_message_to_gemini_content(
+def message_to_gemini_content(
     message: Message,
 ) -> types.Content:
     return types.Content(
@@ -27,7 +27,7 @@ def aster_message_to_gemini_content(
     )
 
 
-def aster_function_reply_turn_to_gemini_content(
+def function_reply_turn_to_gemini_content(
     turn: FunctionReplyTurn,
 ) -> types.Content:
     return types.Content(
@@ -45,7 +45,7 @@ def aster_function_reply_turn_to_gemini_content(
     )
 
 
-def gemini_function_call_to_aster_tool_call(
+def gemini_function_call_to_tool_call(
     function_call: types.FunctionCall,
 ) -> ToolCall:
     if function_call.name is None:
@@ -88,7 +88,7 @@ class GeminiContext:
 
     def emplace_message(self, message: Message) -> None:
         self.push_back(
-            aster_message_to_gemini_content(message)
+            message_to_gemini_content(message)
         )
 
     def emplace_function_reply_turn(
@@ -96,7 +96,7 @@ class GeminiContext:
         turn: FunctionReplyTurn,
     ) -> None:
         self.push_back(
-            aster_function_reply_turn_to_gemini_content(turn)
+            function_reply_turn_to_gemini_content(turn)
         )
 
     def pop_back(self) -> types.Content:
@@ -115,7 +115,7 @@ class GeminiContext:
             function_call = part.function_call
             if function_call is not None:
                 tool_calls.append(
-                    gemini_function_call_to_aster_tool_call(
+                    gemini_function_call_to_tool_call(
                         function_call
                     )
                 )
