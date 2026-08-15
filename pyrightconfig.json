@@ -5,6 +5,12 @@
     "extraPaths": [
         "."
     ],
+    "exclude": [
+        "build",
+        "dist",
+        "**/*.egg-info",
+        "**/__pycache__"
+    ],
     "strictListInference": true,
     "strictDictionaryInference": true,
     "strictSetInference": true,
