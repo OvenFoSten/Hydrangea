@@ -12,6 +12,14 @@ Hydrangea is a small, lightweight LLM gateway.
 - Google Gemini via `google-genai` 2.10.0
 - OpenAI-compatible embedding endpoints
 
+## Development installation
+
+```bash
+python -m pip install -e .
+```
+
+This keeps the installed package linked to the current source tree.
+
 ## Why Hydrangea?
 
 Hydrangea began as an internal module built for Aster. I wanted to manage LLM context myself instead of handing that responsibility to a larger framework. When another project needed the same code, extracting it into a small package was cleaner than maintaining multiple copies.
