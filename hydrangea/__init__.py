@@ -10,6 +10,7 @@ from .context import (
     NativeContent,
     NativeContext,
     ToolCall,
+    FunctionReply
 )
 from .gateway import GatewayType
 from .llm import (
@@ -36,4 +37,5 @@ __all__ = [
     "GeminiContext",
     "GeminiResponse",
     "ReasoningEffort",
+    "FunctionReply",
 ]
