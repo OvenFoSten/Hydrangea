@@ -1,7 +1,7 @@
 from typing import Protocol
 from typing_extensions import assert_never
 
-from .prompt import SystemInstruction
+from .instruction import SystemInstruction
 from .config import LLMConfig
 from .context import (
     Context,
@@ -35,13 +35,15 @@ class LLM:
         self,
         gateway_type: GatewayType,
         config: LLMConfig,
-        instruction:SystemInstruction
+        instruction:SystemInstruction,
+        temperature:float
     ) -> None:
         match gateway_type:
             case GatewayType.gemini:
                 self._native = Gemini.from_llm_config(
                     config=config,
-                    instruction=instruction
+                    instruction=instruction,
+                    temperature=temperature
                 )
 
             case _:
