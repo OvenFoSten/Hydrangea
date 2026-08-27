@@ -1,6 +1,7 @@
 from typing import Protocol
 from typing_extensions import assert_never
 
+from .prompt import SystemInstruction
 from .config import LLMConfig
 from .context import (
     Context,
@@ -20,7 +21,6 @@ class _LLMImplementation(Protocol):
 
     def invoke(
         self,
-        target: str,
         context: ContextImplementation,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
@@ -35,11 +35,13 @@ class LLM:
         self,
         gateway_type: GatewayType,
         config: LLMConfig,
+        instruction:SystemInstruction
     ) -> None:
         match gateway_type:
             case GatewayType.gemini:
-                self._native = Gemini.from_config(
+                self._native = Gemini.from_llm_config(
                     config=config,
+                    instruction=instruction
                 )
 
             case _:
@@ -47,13 +49,11 @@ class LLM:
 
     def invoke(
         self,
-        target: str,
         context: Context,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
     ) -> NativeContent:
         return self._native.invoke(
-            target=target,
             context=context.implementation,
             effort=effort,
             tool_declarations=tool_declarations,
