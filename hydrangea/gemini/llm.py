@@ -10,14 +10,9 @@ from .context import GeminiContext
 from ..config import LLMConfig
 from ..context import ContextImplementation
 from ..gateway import GatewayType
-from ..prompt import Prompt
+from ..prompt import SystemInstruction
 from ..reasoning import ReasoningEffort
 from ..tool import ToolDeclaration
-
-
-_TEMP_PROMPT: str = """
-You are an agent that can think and take actions to achieve a target.
-"""
 
 
 def _reasoning_effort_to_gemini_thinking_level(
@@ -58,27 +53,30 @@ def _tool_declaration_to_gemini_declaration(
 
 
 class Gemini:
-    _prompt: Prompt
+    _instruction: SystemInstruction
     _config: GeminiConfig
     _client: genai.Client
 
     def __init__(
         self,
         config: GeminiConfig,
+        instruction:SystemInstruction
     ) -> None:
-        self._prompt = Prompt(_TEMP_PROMPT)
+        self._instruction = instruction
         self._config = config
         self._client = genai.Client(
             api_key=self._config.api_key
         )
 
     @classmethod
-    def from_config(
+    def from_llm_config(
         cls,
         config: LLMConfig,
+        instruction:SystemInstruction
     ) -> "Gemini":
         return cls(
             config=llm_config_to_gemini_config(config),
+            instruction = instruction
         )
 
     @property
@@ -87,15 +85,14 @@ class Gemini:
 
     def invoke(
         self,
-        target: str,
         context: ContextImplementation,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
     ) -> types.Content:
         if not isinstance(context, GeminiContext):
             raise TypeError(
-                "Context implementation does not match Gemini: "
-                "expected GeminiContext, got "
+                "Context implementation does not match Gemini: "+
+                "expected GeminiContext, got "+
                 f"{type(context).__name__}."
             )
 
@@ -105,9 +102,7 @@ class Gemini:
                 effort
             )
         )
-        prompt = self._prompt.render({
-            "target": target
-        })
+        prompt = self._instruction
         sdk_context: list[types.ContentUnionDict] = []
         sdk_context.extend(gemini_context.contents)
         gemini_tool_declarations = [
@@ -144,14 +139,14 @@ class Gemini:
         candidates = response.candidates
         if not candidates:
             raise ValueError(
-                "No candidates from Google, "
+                "No candidates from Google, "+
                 "please check the API availability."
             )
 
         content = candidates[0].content
         if content is None:
             raise ValueError(
-                "No content from Google, "
+                "No content from Google, "+
                 "please check the API availability."
             )
 
