@@ -19,6 +19,7 @@ from .llm import (
 )
 from .general import EmbClient, EmbClientConfig
 from .tool import Tool, ToolDeclaration
+from .instruction import SystemInstruction
 
 __all__ = [
     "Context",
@@ -38,4 +39,5 @@ __all__ = [
     "GeminiResponse",
     "ReasoningEffort",
     "FunctionReply",
+    "SystemInstruction"
 ]
