@@ -37,7 +37,6 @@ class LLM:
         gateway_type: GatewayType,
         config: LLMConfig,
         instruction:SystemInstruction,
-        temperature:float
     ) -> None:
         match gateway_type:
             case GatewayType.gemini:
