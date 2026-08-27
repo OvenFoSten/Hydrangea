@@ -24,6 +24,7 @@ class _LLMImplementation(Protocol):
         context: ContextImplementation,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
+        temperature:float
     ) -> NativeContent:
         ...
 
@@ -43,7 +44,6 @@ class LLM:
                 self._native = Gemini.from_llm_config(
                     config=config,
                     instruction=instruction,
-                    temperature=temperature
                 )
 
             case _:
@@ -54,11 +54,13 @@ class LLM:
         context: Context,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
+        temperature:float
     ) -> NativeContent:
         return self._native.invoke(
             context=context.implementation,
             effort=effort,
             tool_declarations=tool_declarations,
+            temperature=temperature
         )
 
     @property
