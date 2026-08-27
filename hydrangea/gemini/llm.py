@@ -10,7 +10,7 @@ from .context import GeminiContext
 from ..config import LLMConfig
 from ..context import ContextImplementation
 from ..gateway import GatewayType
-from ..prompt import SystemInstruction
+from ..instruction import SystemInstruction
 from ..reasoning import ReasoningEffort
 from ..tool import ToolDeclaration
 
@@ -88,6 +88,7 @@ class Gemini:
         context: ContextImplementation,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
+        temperature:float
     ) -> types.Content:
         if not isinstance(context, GeminiContext):
             raise TypeError(
@@ -132,7 +133,7 @@ class Gemini:
                     if gemini_tool_declarations
                     else None
                 ),
-                temperature=0.7,
+                temperature=temperature,
             ),
         )
 
