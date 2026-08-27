@@ -80,7 +80,7 @@ class GeminiContext:
     def push_back(self, content: object) -> None:
         if not isinstance(content, types.Content):
             raise TypeError(
-                "GeminiContext requires types.Content, got "
+                "GeminiContext requires types.Content, got "+
                 f"{type(content).__name__}."
             )
 
