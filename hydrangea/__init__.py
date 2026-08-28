@@ -7,10 +7,15 @@ from .gemini import (
 )
 from .context import (
     Context,
+    ContextImplementation,
     NativeContent,
     NativeContext,
+)
+from .message import (
+    FunctionReply,
+    Message,
+    Role,
     ToolCall,
-    FunctionReply
 )
 from .gateway import GatewayType
 from .llm import (
@@ -23,8 +28,10 @@ from .instruction import SystemInstruction
 
 __all__ = [
     "Context",
+    "ContextImplementation",
     "LLM",
     "LLMConfig",
+    "Message",
     "NativeContent",
     "NativeContext",
     "Tool",
@@ -38,6 +45,7 @@ __all__ = [
     "GeminiContext",
     "GeminiResponse",
     "ReasoningEffort",
+    "Role",
     "FunctionReply",
     "SystemInstruction"
 ]
