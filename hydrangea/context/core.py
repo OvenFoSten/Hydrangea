@@ -4,9 +4,9 @@ from typing import Protocol, TypeAlias
 from google.genai import types
 from typing_extensions import assert_never
 
-from .gateway import GatewayType
-from .gemini.context import GeminiContext
-from .message import (
+from ..gateway import GatewayType
+from ..gemini.context import GeminiContext
+from ..message import (
     FunctionReply,
     FunctionReplyTurn,
     Message,
@@ -54,7 +54,8 @@ class Context:
             case GatewayType.gemini:
                 if native is None:
                     context = GeminiContext()
-                elif isinstance(native, GeminiContext):
+                # TODO: Remove ignore when have Another Provider
+                elif isinstance(native, GeminiContext):  # pyright: ignore[reportUnnecessaryIsInstance]
                     context = native
                 else:
                     assert_never(native)
