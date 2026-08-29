@@ -3,12 +3,13 @@ from typing import Protocol
 from enum import Enum, auto
 from dataclasses import dataclass
 
-from ..message import Message
+from ...message import Message
 
 class State(Enum):
     retain = auto() # Do nothing
     prompte = auto() # Area.promote()
     reclaim = auto() # GC(Area)
+
 
 class ContextAreaImplementation(Protocol):
     _state:State
@@ -20,7 +21,16 @@ class ContextAreaImplementation(Protocol):
     # .render will return a human-implemented message list.
     def render(self)->tuple[Mark,list[Message]]:
         ...
-    
+
+    # .promote will return a human-implemented message or None.
+    def promote(self)->tuple[Message,...]:
+        ...
+
+    # .gc_prologue will act as a notification to Area. Prepare for GC.
+    def gc_prologue(self)->None:
+        ...
+
+
 @dataclass(frozen=True,slots=True,eq=False)
 class Mark:
     _area:ContextAreaImplementation
