@@ -1,9 +1,9 @@
-from .core import State as AreaState
+from .core import LifeState as AreaLifeState
+from .core import FlowState as AreaFlowState
 from .core import ContextAreaImplementation
-from .core import Mark as AreaMark
 
 __all__=[
-    "AreaState",
-    "ContextAreaImplementation",
-    "AreaMark"
+    "AreaLifeState",
+    "AreaFlowState",
+    "ContextAreaImplementation"
 ]
