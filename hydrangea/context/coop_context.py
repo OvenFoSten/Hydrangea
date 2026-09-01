@@ -1,4 +1,4 @@
-from typing import NewType,TypeAlias
+from typing import NewType
 from dataclasses import dataclass
 
 from typing_extensions import assert_never
@@ -7,21 +7,11 @@ from .area import ContextAreaImplementation,AreaLifeState,AreaFlowState
 from .core import Context
 
 ContextIndex = NewType("ContextIndex",int)
-_FIRST_CONTEXT_INDEX = ContextIndex(0)
 
 @dataclass(slots=True)
 class _EffectRange:
     earliest: ContextIndex
     latest: ContextIndex
-
-_AreaEffectEntry: TypeAlias = tuple[
-    ContextAreaImplementation,
-    _EffectRange,
-]
-
-def _effect_latest(entry:_AreaEffectEntry)->ContextIndex:
-    _,effect_range = entry
-    return effect_range.latest
 
 @dataclass(frozen=True,slots=True)
 class _CollectionPlan:
@@ -53,14 +43,15 @@ class CoopContext:
 
         context_size = len(self._context)
         ordered_areas = sorted(
-            self._area_mapping.items(),
-            key=_effect_latest,
+            self._area_mapping,
+            key=lambda area: self._area_mapping[area].latest,
             reverse=True,
         )
 
-        for area,effect_range in ordered_areas:
+        for area in ordered_areas:
+            effect_range = self._area_mapping[area]
             if (
-                effect_range.earliest < _FIRST_CONTEXT_INDEX
+                effect_range.earliest < 0
                 or effect_range.latest < effect_range.earliest
                 or effect_range.latest >= context_size
             ):
@@ -75,11 +66,13 @@ class CoopContext:
                     "Reclaimed Area remains in the working set."
                 )
 
-        _,tail_effect_range = ordered_areas[0]
+        tail_area = ordered_areas[0]
+        tail_effect_range = self._area_mapping[tail_area]
         component_earliest = tail_effect_range.earliest
         component: list[ContextAreaImplementation] = []
 
-        for area,effect_range in ordered_areas:
+        for area in ordered_areas:
+            effect_range = self._area_mapping[area]
             if effect_range.latest < component_earliest:
                 break
 
