@@ -21,3 +21,8 @@ include = ["hydrangea", "hydrangea.*"]
 
 [tool.setuptools.package-data]
 hydrangea = ["py.typed"]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8,<9",
+]
