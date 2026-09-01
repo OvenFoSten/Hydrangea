@@ -7,6 +7,10 @@ Hydrangea は、軽量で小さな LLM ゲートウェイです。
 > [!WARNING]
 > Hydrangea は現在、初期段階のプロトタイプです。公開 API は予告なく変更される可能性があります。
 
+## 特徴
+
+Cooperative Context（`CoopContext`）は、呼び出し側が定義した Context Area による一時的なメッセージの追加と、明示的なスケジューリング、ライフサイクル、回収のセマンティクスを提供します。
+
 ## 現在の対応範囲
 
 - `google-genai` 2.10.0 を利用した Google Gemini

@@ -7,6 +7,10 @@ Hydrangea is a small, lightweight LLM gateway.
 > [!WARNING]
 > Hydrangea is currently an early prototype. Its public API may change without notice.
 
+## Feature
+
+Cooperative Context (`CoopContext`) allows caller-defined Context Areas to contribute temporary messages with explicit scheduling, lifetime, and reclamation semantics.
+
 ## Current support
 
 - Google Gemini via `google-genai` 2.10.0
