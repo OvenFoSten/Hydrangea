@@ -174,42 +174,29 @@ All promotion results are collected before any `gc_prologue()` call. Changing `l
 
 Changing Area state from this callback has no effect on the active collection plan.
 
-## Execution pipeline
+## Area lifecycle
 
 ```mermaid
-sequenceDiagram
-    accTitle: Context Area execution pipeline
-    accDescr: CoopContext performs collection, observation, rendering, and cursor updates through the Area contract.
+flowchart TD
+    accTitle: Context Area lifecycle
+    accDescr: CoopContext repeatedly observes and renders a retained Area, then waits until a retired Area can be promoted and reclaimed.
 
-    participant Coop as CoopContext
-    participant Area
+    Register["CoopContext registers Area"] --> Retain["Area is retained"]
+    Retain --> Observe["CoopContext calls observe()<br/>if an EffectRange exists"]
+    Observe --> Render["CoopContext calls render()<br/>if Area remains retained"]
+    Render --> Messages["Area returns list[Message]"]
+    Messages --> Flow{"Area flow_state"}
 
-    Coop->>Coop: render()
-    Coop->>Coop: plan tail collection
+    Flow -- exclusive --> Keep["CoopContext keeps cursor"]
+    Flow -- yielded --> Advance["CoopContext advances cursor"]
+    Keep --> Retain
+    Advance --> Retain
 
-    opt Area selected for collection
-        Coop->>Area: promote()
-        Area-->>Coop: tuple[Message, ...]
-        Coop->>Area: gc_prologue()
-        Coop->>Coop: reclaim tail and append promotions
-    end
-
-    opt retained Area has an EffectRange
-        Coop->>Area: observe(read-only slice)
-    end
-
-    alt Area remains retained
-        Coop->>Area: render()
-        Area-->>Coop: list[Message]
-        Coop->>Coop: append Messages and update EffectRange
-        alt Area yields
-            Coop->>Coop: advance cursor
-        else Area remains exclusive
-            Coop->>Coop: retain cursor
-        end
-    else Area retired during observe
-        Coop->>Coop: advance cursor without rendering
-    end
+    Retain -->|"Area sets life_state to retired"| Retired["Area is retired"]
+    Retired --> Wait["CoopContext waits until<br/>the tail is reclaimable"]
+    Wait --> Promote["CoopContext calls promote()"]
+    Promote --> Prologue["CoopContext calls gc_prologue()"]
+    Prologue --> Removed["CoopContext removes Area"]
 ```
 
 Collection happens at the beginning of a later `CoopContext.render()` call. This creates a safe point between model invocations rather than modifying Context while it is in use.
@@ -234,19 +221,3 @@ This restriction preserves the append-only Context prefix expected by provider-n
 - Route model responses to an Area explicitly when the Area needs information beyond its currently recorded EffectRange.
 
 `CoopContext.register()` currently does not perform runtime Protocol validation, duplicate detection, or synchronization. Static checking and disciplined construction remain part of the caller contract.
-
-## Common Area shapes
-
-### One-shot authority
-
-Render one message, switch to `retired`, return `()` from `promote()`, and allow the message to disappear after one model turn.
-
-### Multi-turn skill
-
-Remain `exclusive` while the skill controls the interaction. Render guidance, accept model or tool results through an explicit application-level interface, then switch to `yielded` and retire when complete.
-
-### Compaction or summary
-
-Remain active while observing a growing EffectRange. Once a threshold is reached, retire and return a stable summary from `promote()`. The Collector removes the old tail and appends that summary as the surviving Context message.
-
-Executable examples are available in [`test_area_patterns.py`](https://github.com/OvenFoSten/Hydrangea/blob/main/tests/context/test_area_patterns.py) and [`test_coop_context_workflow.py`](https://github.com/OvenFoSten/Hydrangea/blob/main/tests/context/test_coop_context_workflow.py).
