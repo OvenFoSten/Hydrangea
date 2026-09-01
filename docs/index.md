@@ -5,6 +5,8 @@ nav_order: 1
 
 # Hydrangea Documentation
 
+English | [日本語]({% link ja/index.md %})
+
 Hydrangea is a small, lightweight LLM gateway for applications that need explicit control over context, tools, and provider-native responses.
 
 > Hydrangea is currently an early prototype. Its public API may change without notice.
