@@ -3,8 +3,6 @@ from dataclasses import dataclass
 
 from typing_extensions import assert_never
 
-from hydrangea.context.area.core import LifeState
-
 from .area import ContextAreaImplementation,AreaLifeState,AreaFlowState
 from .core import Context, NativeContent
 from ..message import Message
@@ -95,21 +93,51 @@ class CoopContext:
             areas=tuple(component),
         )
 
-    def _gc(self,plan:_CollectionPlan)->None:        
+    def _cursor_after_collection(
+        self,
+        areas_to_collect:set[ContextAreaImplementation],
+    )->ContextAreaImplementation|None:
+        current_area = self._area_cursor_store
+        if current_area is None:
+            return None
+
+        if current_area not in self._areas:
+            raise RuntimeError(
+                "Current Area is missing from CoopContext."
+            )
+
+        if current_area not in areas_to_collect:
+            return current_area
+
+        current_index = self._areas.index(current_area)
+        area_count = len(self._areas)
+        for offset in range(1,area_count+1):
+            candidate = self._areas[
+                (current_index+offset)%area_count
+            ]
+            if candidate not in areas_to_collect:
+                return candidate
+
+        return None
+
+    def _gc(self,plan:_CollectionPlan)->None:
         if plan.expected_context_size != len(self._context):
             raise RuntimeError("Unexpected context change between collector and gc.")
 
-        # 0. Repair Cursor
-        if not self._area_cursor_store:
-            return
-        if self._area_cursor_store.life_state == LifeState.retired:
-            cursor_index = self._areas.index(self._area_cursor_store)
-            area_length = len(self._areas)
-            visited:int = 0
-            while self._areas[cursor_index].life_state == LifeState.retired and visited<area_length:
-                visited+=1
-                cursor_index = (cursor_index+1)%area_length
-                self._area_cursor_store = self._areas[cursor_index]
+        areas_to_collect = set(plan.areas)
+        for area in plan.areas:
+            if area not in self._areas:
+                raise RuntimeError(
+                    "Collected Area is missing from CoopContext."
+                )
+            if area not in self._area_mapping:
+                raise RuntimeError(
+                    "Collected Area is missing from the working set."
+                )
+
+        next_cursor = self._cursor_after_collection(
+            areas_to_collect
+        )
 
         # 1. Collect Promote
         promotes:list[Message] = list()
@@ -118,11 +146,26 @@ class CoopContext:
         # 2. GC
         for area in reversed(plan.areas):
             area.gc_prologue()
-            self._areas.remove(area)
+
+        tail_length = (
+            plan.expected_context_size
+            - int(plan.earliest)
+        )
+        detached = self._context.detach_tail(
+            length=tail_length
+        )
+        self.garbage.extend(detached)
+
+        for area in plan.areas:
             _ = self._area_mapping.pop(area)
-        
-        self.garbage.extend(self._context.detach_tail(
-            plan.expected_context_size-plan.earliest))
+
+        self._areas[:] = [
+            area
+            for area in self._areas
+            if area not in areas_to_collect
+        ]
+        self._area_cursor_store = next_cursor
+
         # 3. emplace promotes
         for promote in promotes:
             self._context.emplace_message(promote)
@@ -131,14 +174,18 @@ class CoopContext:
     def render(self)->Context:
         if not self._areas:
             return self._context
-        
-        if self._area_cursor_store is None:
-            self._area_cursor_store = self._areas[0]
-        
+
         # 1. Collect & GC
         plan = self._collect()
-        if plan:
+        if plan is not None:
             self._gc(plan)
+
+        if not self._areas:
+            self._area_cursor_store = None
+            return self._context
+
+        if self._area_cursor_store is None:
+            self._area_cursor_store = self._areas[0]
 
         # 3. Unfold
         area_count = len(self._areas)
