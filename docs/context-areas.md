@@ -28,6 +28,7 @@ from hydrangea.message import Message, Role
 class OneShotNoticeArea:
     _life_state: AreaLifeState
     _flow_state: AreaFlowState
+    
     _content: str
     _rendered: bool
 
