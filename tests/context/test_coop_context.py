@@ -1,6 +1,8 @@
 # pyright: reportPrivateUsage=false
 
-from hydrangea.context import Context
+from collections.abc import Sequence
+
+from hydrangea.context import Context, NativeContent
 from hydrangea.context.area import AreaFlowState, AreaLifeState
 from hydrangea.context.coop_context import (
     ContextIndex,
@@ -16,17 +18,22 @@ class _FakeArea:
     _life_state: AreaLifeState
     _flow_state: AreaFlowState
     _events: list[str]
+    _render_content: bool
+    observed_count: int
 
     def __init__(
         self,
         name: str,
         life_state: AreaLifeState,
         events: list[str],
+        render_content: bool = False,
     ) -> None:
         self.name = name
         self._life_state = life_state
         self._flow_state = AreaFlowState.yielded
         self._events = events
+        self._render_content = render_content
+        self.observed_count = 0
 
     @property
     def life_state(self) -> AreaLifeState:
@@ -36,8 +43,23 @@ class _FakeArea:
     def flow_state(self) -> AreaFlowState:
         return self._flow_state
 
+    def observe(
+        self,
+        context: Sequence[NativeContent],
+    ) -> None:
+        _ = context
+        self.observed_count += 1
+
     def render(self) -> list[Message]:
-        return []
+        if not self._render_content:
+            return []
+
+        return [
+            Message(
+                role=Role.user,
+                content=f"rendered:{self.name}",
+            )
+        ]
 
     def promote(self) -> tuple[Message, ...]:
         self._events.append(f"promote:{self.name}")
@@ -63,6 +85,58 @@ def _context_with_messages(count: int) -> Context:
         )
 
     return context
+
+
+def test_context_slice_uses_python_bounds() -> None:
+    context = _context_with_messages(4)
+
+    assert len(context[1:3]) == 2
+    assert len(context[:]) == 4
+    assert context[2:2] == ()
+    assert len(context[-2:]) == 2
+
+
+def test_observe_only_updates_areas_reached_by_cursor() -> None:
+    events: list[str] = []
+    yielded_prefix = _FakeArea(
+        "yielded-prefix",
+        AreaLifeState.retain,
+        events,
+        render_content=True,
+    )
+    exclusive = _FakeArea(
+        "exclusive",
+        AreaLifeState.retain,
+        events,
+        render_content=True,
+    )
+    exclusive._flow_state = AreaFlowState.exclusive
+    hidden_tail = _FakeArea(
+        "hidden-tail",
+        AreaLifeState.retain,
+        events,
+        render_content=True,
+    )
+
+    context = CoopContext(_context_with_messages(0))
+    context.register(yielded_prefix)
+    context.register(exclusive)
+    context.register(hidden_tail)
+
+    _ = context.render()
+    assert yielded_prefix.observed_count == 0
+    assert exclusive.observed_count == 0
+    assert hidden_tail.observed_count == 0
+
+    _ = context.render()
+    assert yielded_prefix.observed_count == 0
+    assert exclusive.observed_count == 1
+    assert hidden_tail.observed_count == 0
+
+    _ = context.render()
+    assert yielded_prefix.observed_count == 0
+    assert exclusive.observed_count == 2
+    assert hidden_tail.observed_count == 0
 
 
 def test_collector_follows_transitive_overlap_chain() -> None:

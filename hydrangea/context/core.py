@@ -34,6 +34,12 @@ class ContextImplementation(Protocol):
     def detach_tail(self, length: int) -> tuple[NativeContent, ...]:
         ...
 
+    def __getitem__(
+        self,
+        selection: slice,
+    ) -> tuple[NativeContent, ...]:
+        ...
+
     def pop_back(self) -> object:
         ...
 
@@ -92,6 +98,12 @@ class Context:
         length: int,
     ) -> tuple[NativeContent, ...]:
         return self._native.detach_tail(length)
+
+    def __getitem__(
+        self,
+        selection: slice,
+    ) -> tuple[NativeContent, ...]:
+        return self._native[selection]
 
     def pop_back(self) -> None:
         _ = self._native.pop_back()

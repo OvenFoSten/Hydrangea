@@ -195,9 +195,25 @@ class CoopContext:
             visited += 1
             area_cursor = self._areas[area_cursor_index]
             # Single round till find lifestate = retain
-            if(area_cursor.life_state != AreaLifeState.retain):
+            area_life_state:AreaLifeState = area_cursor.life_state
+            if(area_life_state != AreaLifeState.retain):
                 area_cursor_index = (area_cursor_index+1)%area_count
                 continue
+
+            effect_range = self._area_mapping.get(area_cursor)
+            if effect_range is not None:
+                context_slice = self._context[
+                    int(effect_range.earliest):
+                    int(effect_range.latest) + 1
+                ]
+                area_cursor.observe(context_slice)
+
+                area_life_state = area_cursor.life_state
+                if area_life_state is AreaLifeState.retired:
+                    area_cursor_index = (
+                        area_cursor_index + 1
+                    ) % area_count
+                    continue
 
             # Render Content
             content = area_cursor.render()

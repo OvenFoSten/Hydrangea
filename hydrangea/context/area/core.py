@@ -1,7 +1,9 @@
 from __future__ import annotations
+from collections.abc import Sequence
 from typing import Protocol
 from enum import Enum, auto
 
+from ..core import NativeContent
 from ...message import Message
 
 class LifeState(Enum):
@@ -23,6 +25,16 @@ class ContextAreaImplementation(Protocol):
 
     @property
     def flow_state(self)->FlowState:
+        ...
+
+    def observe(
+        self,
+        context:Sequence[NativeContent],
+    )->None:
+        '''
+        Observe the Context range currently owned by this Area.
+        The supplied Sequence is a shallow, read-only snapshot.
+        '''
         ...
     
     def render(self)->list[Message]:

@@ -1,8 +1,10 @@
 # pyright: reportPrivateUsage=false
 
+from collections.abc import Sequence
+
 from google.genai import types
 
-from hydrangea.context import Context
+from hydrangea.context import Context, NativeContent
 from hydrangea.context.area import AreaFlowState, AreaLifeState
 from hydrangea.context.coop_context import CoopContext
 from hydrangea.gateway import GatewayType
@@ -65,6 +67,12 @@ class _AuthoritativeMessageArea:
     def flow_state(self) -> AreaFlowState:
         return self._flow_state
 
+    def observe(
+        self,
+        context: Sequence[NativeContent],
+    ) -> None:
+        _ = context
+
     def render(self) -> list[Message]:
         if self._rendered:
             raise RuntimeError(
@@ -114,6 +122,12 @@ class _CountingArea:
     def flow_state(self) -> AreaFlowState:
         return self._flow_state
 
+    def observe(
+        self,
+        context: Sequence[NativeContent],
+    ) -> None:
+        _ = context
+
     def render(self) -> list[Message]:
         if self._life_state is AreaLifeState.retired:
             raise RuntimeError(
@@ -145,6 +159,7 @@ class _ThresholdCompactArea:
     _inner: _CountingArea
     _threshold: int
     _messages: list[Message]
+    observed_lengths: list[int]
     gc_called: bool
 
     def __init__(
@@ -162,6 +177,7 @@ class _ThresholdCompactArea:
         self._inner = inner
         self._threshold = threshold
         self._messages = []
+        self.observed_lengths = []
         self.gc_called = False
 
     @property
@@ -172,16 +188,18 @@ class _ThresholdCompactArea:
     def flow_state(self) -> AreaFlowState:
         return self._flow_state
 
+    def observe(
+        self,
+        context: Sequence[NativeContent],
+    ) -> None:
+        observed_length = len(context)
+        self.observed_lengths.append(observed_length)
+        if observed_length >= self._threshold:
+            self._life_state = AreaLifeState.retired
+
     def render(self) -> list[Message]:
         messages = self._inner.render()
         self._messages.extend(messages)
-
-        if (
-            len(self._messages) >= self._threshold
-            or self._inner.life_state is AreaLifeState.retired
-        ):
-            self._life_state = AreaLifeState.retired
-
         return messages
 
     def promote(self) -> tuple[Message, ...]:
@@ -274,7 +292,21 @@ def test_compact_area_wraps_an_area_and_promotes_summary() -> None:
             for value in range(1, expected_value + 1)
         )
 
+    assert area.life_state is AreaLifeState.retain
+    assert area.observed_lengths == [1, 2, 3]
+
+    rendered_context = coop_context.render()
+
+    assert rendered_context is context
     assert area.life_state is AreaLifeState.retired
+    assert area.observed_lengths == [1, 2, 3, 4]
+    assert not area.gc_called
+    assert _context_structure(native) == (
+        ("user", "1"),
+        ("user", "2"),
+        ("user", "3"),
+        ("user", "4"),
+    )
 
     rendered_context = coop_context.render()
 

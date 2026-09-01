@@ -120,6 +120,14 @@ class GeminiContext:
 
         return detached
 
+    def __getitem__(
+        self,
+        selection: slice,
+    ) -> tuple[types.Content, ...]:
+        return tuple(
+            self._contents[selection]
+        )
+
     def pop_back(self) -> types.Content:
         return self._contents.pop()
 
