@@ -31,6 +31,9 @@ class ContextImplementation(Protocol):
     ) -> None:
         ...
 
+    def detach_tail(self, length: int) -> tuple[NativeContent, ...]:
+        ...
+
     def pop_back(self) -> object:
         ...
 
@@ -83,6 +86,12 @@ class Context:
             replies=tuple(replies)
         )
         self._native.emplace_function_reply_turn(turn)
+
+    def detach_tail(
+        self,
+        length: int,
+    ) -> tuple[NativeContent, ...]:
+        return self._native.detach_tail(length)
 
     def pop_back(self) -> None:
         _ = self._native.pop_back()

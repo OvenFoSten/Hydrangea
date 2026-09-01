@@ -99,6 +99,27 @@ class GeminiContext:
             function_reply_turn_to_gemini_content(turn)
         )
 
+    def detach_tail(
+        self,
+        length: int,
+    ) -> tuple[types.Content, ...]:
+        context_size = len(self._contents)
+        if length < 0 or length > context_size:
+            raise ValueError(
+                "Invalid tail length: "
+                f"length={length}, "
+                f"context_size={context_size}."
+            )
+
+        tail_begin = context_size - length
+        detached = tuple(
+            self._contents[tail_begin:]
+        )
+
+        del self._contents[tail_begin:]
+
+        return detached
+
     def pop_back(self) -> types.Content:
         return self._contents.pop()
 
