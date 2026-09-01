@@ -13,6 +13,12 @@ class _EffectRange:
     earliest: ContextIndex
     latest: ContextIndex
 
+@dataclass(frozen=True,slots=True)
+class _CollectionPlan:
+    earliest: ContextIndex
+    expected_context_size: int
+    areas: tuple[ContextAreaImplementation,...]
+
 class CoopContext:
     _context:Context
 
@@ -30,6 +36,65 @@ class CoopContext:
 
     def register(self,area:ContextAreaImplementation)->None:
         self._areas.append(area)
+
+    def _collect(self)->_CollectionPlan|None:
+        if not self._area_mapping:
+            return None
+
+        context_size = len(self._context)
+        ordered_areas = sorted(
+            self._area_mapping.items(),
+            key=lambda item: item[1].latest,
+            reverse=True,
+        )
+
+        for area,effect_range in ordered_areas:
+            if (
+                effect_range.earliest < 0
+                or effect_range.latest < effect_range.earliest
+                or effect_range.latest >= context_size
+            ):
+                raise RuntimeError(
+                    "EffectRange is outside Context: "
+                    f"[{effect_range.earliest}, {effect_range.latest}], "
+                    f"context_size={context_size}."
+                )
+
+            if area.life_state is AreaLifeState.reclaimed:
+                raise RuntimeError(
+                    "Reclaimed Area remains in the working set."
+                )
+
+        component_earliest = ordered_areas[0][1].earliest
+        component: list[ContextAreaImplementation] = []
+
+        for area,effect_range in ordered_areas:
+            if effect_range.latest < component_earliest:
+                break
+
+            match area.life_state:
+                case AreaLifeState.retain:
+                    return None
+
+                case AreaLifeState.retired:
+                    component.append(area)
+
+                case AreaLifeState.reclaimed:
+                    raise RuntimeError(
+                        "Reclaimed Area remains in the working set."
+                    )
+
+                case _:
+                    assert_never(area.life_state)
+
+            if effect_range.earliest < component_earliest:
+                component_earliest = effect_range.earliest
+
+        return _CollectionPlan(
+            earliest=component_earliest,
+            expected_context_size=context_size,
+            areas=tuple(component),
+        )
 
     def render(self)->Context:
         if not self._areas:
