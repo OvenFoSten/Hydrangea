@@ -1,6 +1,8 @@
 ---
 title: Declaring a Context Area
-nav_order: 2
+parent: English
+nav_order: 1
+lang: en
 ---
 
 # Declaring a Context Area

@@ -1,13 +1,13 @@
 ---
 title: 日本語
-nav_order: 3
+nav_order: 2
 has_children: true
 lang: ja
 ---
 
 # Hydrangea ドキュメント
 
-<p><a href="{% link index.md %}">English</a> · <strong>日本語</strong></p>
+<p><a href="{% link en/index.md %}">English</a> · <strong>日本語</strong></p>
 
 Hydrangea は、Context、Tool、およびプロバイダー固有のレスポンスを明示的に制御したいアプリケーション向けの、小規模で軽量な LLM ゲートウェイです。
 
