@@ -1,4 +1,4 @@
-from typing import NewType
+from typing import NewType,TypeAlias
 from dataclasses import dataclass
 
 from typing_extensions import assert_never
@@ -7,11 +7,21 @@ from .area import ContextAreaImplementation,AreaLifeState,AreaFlowState
 from .core import Context
 
 ContextIndex = NewType("ContextIndex",int)
+_FIRST_CONTEXT_INDEX = ContextIndex(0)
 
 @dataclass(slots=True)
 class _EffectRange:
     earliest: ContextIndex
     latest: ContextIndex
+
+_AreaEffectEntry: TypeAlias = tuple[
+    ContextAreaImplementation,
+    _EffectRange,
+]
+
+def _effect_latest(entry:_AreaEffectEntry)->ContextIndex:
+    _,effect_range = entry
+    return effect_range.latest
 
 @dataclass(frozen=True,slots=True)
 class _CollectionPlan:
@@ -44,13 +54,13 @@ class CoopContext:
         context_size = len(self._context)
         ordered_areas = sorted(
             self._area_mapping.items(),
-            key=lambda item: item[1].latest,
+            key=_effect_latest,
             reverse=True,
         )
 
         for area,effect_range in ordered_areas:
             if (
-                effect_range.earliest < 0
+                effect_range.earliest < _FIRST_CONTEXT_INDEX
                 or effect_range.latest < effect_range.earliest
                 or effect_range.latest >= context_size
             ):
@@ -65,7 +75,8 @@ class CoopContext:
                     "Reclaimed Area remains in the working set."
                 )
 
-        component_earliest = ordered_areas[0][1].earliest
+        _,tail_effect_range = ordered_areas[0]
+        component_earliest = tail_effect_range.earliest
         component: list[ContextAreaImplementation] = []
 
         for area,effect_range in ordered_areas:
