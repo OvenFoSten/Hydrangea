@@ -1,0 +1,33 @@
+title: Hydrangea Documentation
+description: Documentation for the Hydrangea LLM gateway
+
+remote_theme: just-the-docs/just-the-docs@v0.12.0
+plugins:
+  - jekyll-remote-theme
+
+url: https://ovenfosten.github.io
+baseurl: /Hydrangea
+
+search_enabled: true
+heading_anchors: true
+enable_copy_code_button: true
+
+mermaid:
+  version: "11.17.2"
+
+aux_links:
+  "Hydrangea on GitHub":
+    - https://github.com/OvenFoSten/Hydrangea
+
+gh_edit_link: true
+gh_edit_link_text: View this page on GitHub
+gh_edit_repository: https://github.com/OvenFoSten/Hydrangea
+gh_edit_branch: main
+gh_edit_source: docs
+gh_edit_view_mode: tree
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
