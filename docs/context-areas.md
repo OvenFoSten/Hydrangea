@@ -179,43 +179,37 @@ Changing Area state from this callback has no effect on the active collection pl
 ```mermaid
 sequenceDiagram
     accTitle: Context Area execution pipeline
-    accDescr: The caller requests a Context, CoopContext performs collection and Area callbacks at a safe point, then the caller invokes the model and pushes its native response into Context.
+    accDescr: CoopContext performs collection, observation, rendering, and cursor updates through the Area contract.
 
-    participant Caller
     participant Coop as CoopContext
     participant Area
-    participant Context
-    participant LLM
 
-    Caller->>Coop: render()
+    Coop->>Coop: render()
     Coop->>Coop: plan tail collection
 
-    opt reclaimable tail component
+    opt Area selected for collection
         Coop->>Area: promote()
         Area-->>Coop: tuple[Message, ...]
         Coop->>Area: gc_prologue()
-        Coop->>Context: detach_tail()
-        Coop->>Context: emplace promoted Messages
+        Coop->>Coop: reclaim tail and append promotions
     end
 
-    opt Area already has an EffectRange
+    opt retained Area has an EffectRange
         Coop->>Area: observe(read-only slice)
     end
 
     alt Area remains retained
         Coop->>Area: render()
         Area-->>Coop: list[Message]
-        Coop->>Context: emplace Messages
-        Coop->>Coop: update EffectRange and cursor
+        Coop->>Coop: append Messages and update EffectRange
+        alt Area yields
+            Coop->>Coop: advance cursor
+        else Area remains exclusive
+            Coop->>Coop: retain cursor
+        end
     else Area retired during observe
         Coop->>Coop: advance cursor without rendering
     end
-
-    Coop-->>Caller: provider-compatible Context
-    Caller->>LLM: invoke(Context)
-    LLM-->>Caller: provider-native response
-    Caller->>Context: push_back(response)
-    Note over Caller,Coop: The next render() call is the next safe point
 ```
 
 Collection happens at the beginning of a later `CoopContext.render()` call. This creates a safe point between model invocations rather than modifying Context while it is in use.
