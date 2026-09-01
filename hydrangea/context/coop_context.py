@@ -3,8 +3,11 @@ from dataclasses import dataclass
 
 from typing_extensions import assert_never
 
+from hydrangea.context.area.core import LifeState
+
 from .area import ContextAreaImplementation,AreaLifeState,AreaFlowState
-from .core import Context
+from .core import Context, NativeContent
+from ..message import Message
 
 ContextIndex = NewType("ContextIndex",int)
 
@@ -21,6 +24,7 @@ class _CollectionPlan:
 
 class CoopContext:
     _context:Context
+    garbage:list[NativeContent]
 
     _areas:list[ContextAreaImplementation]
     _area_mapping:dict[ContextAreaImplementation,_EffectRange]
@@ -28,6 +32,7 @@ class CoopContext:
 
     def __init__(self,context:Context):
         self._context = context
+        self.garbage = list()
 
         self._areas = list()
         self._area_mapping = dict()
@@ -61,11 +66,6 @@ class CoopContext:
                     f"context_size={context_size}."
                 )
 
-            if area.life_state is AreaLifeState.reclaimed:
-                raise RuntimeError(
-                    "Reclaimed Area remains in the working set."
-                )
-
         tail_area = ordered_areas[0]
         tail_effect_range = self._area_mapping[tail_area]
         component_earliest = tail_effect_range.earliest
@@ -83,11 +83,6 @@ class CoopContext:
                 case AreaLifeState.retired:
                     component.append(area)
 
-                case AreaLifeState.reclaimed:
-                    raise RuntimeError(
-                        "Reclaimed Area remains in the working set."
-                    )
-
                 case _:
                     assert_never(area.life_state)
 
@@ -100,6 +95,39 @@ class CoopContext:
             areas=tuple(component),
         )
 
+    def _gc(self,plan:_CollectionPlan)->None:        
+        if plan.expected_context_size != len(self._context):
+            raise RuntimeError("Unexpected context change between collector and gc.")
+
+        # 0. Repair Cursor
+        if not self._area_cursor_store:
+            return
+        if self._area_cursor_store.life_state == LifeState.retired:
+            cursor_index = self._areas.index(self._area_cursor_store)
+            area_length = len(self._areas)
+            visited:int = 0
+            while self._areas[cursor_index].life_state == LifeState.retired and visited<area_length:
+                visited+=1
+                cursor_index = (cursor_index+1)%area_length
+                self._area_cursor_store = self._areas[cursor_index]
+
+        # 1. Collect Promote
+        promotes:list[Message] = list()
+        for area in reversed(plan.areas):
+            promotes.extend(area.promote())
+        # 2. GC
+        for area in reversed(plan.areas):
+            area.gc_prologue()
+            self._areas.remove(area)
+            _ = self._area_mapping.pop(area)
+        
+        self.garbage.extend(self._context.detach_tail(
+            plan.expected_context_size-plan.earliest))
+        # 3. emplace promotes
+        for promote in promotes:
+            self._context.emplace_message(promote)
+
+
     def render(self)->Context:
         if not self._areas:
             return self._context
@@ -107,7 +135,10 @@ class CoopContext:
         if self._area_cursor_store is None:
             self._area_cursor_store = self._areas[0]
         
-        # 1. 
+        # 1. Collect & GC
+        plan = self._collect()
+        if plan:
+            self._gc(plan)
 
         # 3. Unfold
         area_count = len(self._areas)

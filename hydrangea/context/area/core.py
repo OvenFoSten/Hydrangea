@@ -7,7 +7,6 @@ from ...message import Message
 class LifeState(Enum):
     retain = auto() # Do nothing
     retired = auto() # Ready for GC
-    reclaimed = auto() # After GC
 
 class FlowState(Enum):
     exclusive = auto()
