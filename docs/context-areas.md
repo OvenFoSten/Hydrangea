@@ -5,7 +5,7 @@ nav_order: 2
 
 # Declaring a Context Area
 
-English | [日本語]({% link ja/context-areas.md %})
+<p><strong>English</strong> · <a href="{% link ja/context-areas.md %}">日本語</a></p>
 
 A Context Area is a caller-defined object that contributes generic `Message` objects to a `CoopContext`. It also exposes its scheduling and lifetime state so that `CoopContext` can decide when to render it and when its affected Context tail may be reclaimed.
 

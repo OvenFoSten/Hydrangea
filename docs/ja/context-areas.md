@@ -7,7 +7,7 @@ lang: ja
 
 # Context Area の宣言
 
-[English]({% link context-areas.md %}) | 日本語
+<p><a href="{% link context-areas.md %}">English</a> · <strong>日本語</strong></p>
 
 Context Area は、汎用的な `Message` オブジェクトを `CoopContext` に提供する、呼び出し側で定義されたオブジェクトです。また、スケジューリング状態とライフサイクル状態を公開することで、`CoopContext` がいつ Area を render し、Area の影響下にある Context の末尾をいつ回収できるか判断できるようにします。
 

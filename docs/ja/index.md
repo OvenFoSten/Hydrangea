@@ -7,7 +7,7 @@ lang: ja
 
 # Hydrangea ドキュメント
 
-[English]({% link index.md %}) | 日本語
+<p><a href="{% link index.md %}">English</a> · <strong>日本語</strong></p>
 
 Hydrangea は、Context、Tool、およびプロバイダー固有のレスポンスを明示的に制御したいアプリケーション向けの、小規模で軽量な LLM ゲートウェイです。
 

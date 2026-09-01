@@ -5,7 +5,7 @@ nav_order: 1
 
 # Hydrangea Documentation
 
-English | [日本語]({% link ja/index.md %})
+<p><strong>English</strong> · <a href="{% link ja/index.md %}">日本語</a></p>
 
 Hydrangea is a small, lightweight LLM gateway for applications that need explicit control over context, tools, and provider-native responses.
 
