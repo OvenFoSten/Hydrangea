@@ -227,19 +227,3 @@ class CoopContext:
         self._area_cursor_store = self._areas[area_cursor_index]
         # 5. Return Context
         return self._context
-
-
-
-
-        
-
-
-        
-
-
-
-
-        
-        
-        
-        
