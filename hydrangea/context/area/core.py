@@ -5,7 +5,7 @@ from enum import Enum, auto
 from ...message import Message
 
 class LifeState(Enum):
-    retain = auto() # Do nothin
+    retain = auto() # Do nothing
     retired = auto() # Ready for GC
     reclaimed = auto() # After GC
 
