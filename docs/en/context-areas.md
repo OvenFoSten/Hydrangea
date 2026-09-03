@@ -225,4 +225,4 @@ This restriction preserves the append-only Context prefix expected by provider-n
 - Ensure every long-lived overlapping Area eventually retires, or it can keep an entire tail component resident.
 - Route model responses to an Area explicitly when the Area needs information beyond its currently recorded EffectRange.
 
-`CoopContext.register()` currently does not perform runtime Protocol validation, duplicate detection, or synchronization. Static checking and disciplined construction remain part of the caller contract.
+`CoopContext.register()` checks hashability and rejects duplicate registration of the same Area instance. It does not perform runtime Protocol validation or synchronization.
