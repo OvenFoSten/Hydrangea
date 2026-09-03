@@ -39,8 +39,8 @@ class ContextAreaImplementation(Protocol):
     
     def advance(self)->list[Message]:
         '''
-        .render() will return a list human-implemented message that will be appended to Context.
-        Once .render() is called, CoopContext will consider this Area is causing effect.
+        advance() returns caller-constructed messages that will be appended to Context.
+        Once advance() is called, CoopContext considers this Area to have produced an effect.
         '''
         ...
 
