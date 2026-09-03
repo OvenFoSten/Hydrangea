@@ -9,7 +9,7 @@ lang: ja
 
 <p><a href="{% link en/context-areas.md %}">English</a> · <strong>日本語</strong></p>
 
-Context Area は、汎用的な `Message` オブジェクトを `CoopContext` に提供する、呼び出し側で定義されたオブジェクトです。また、スケジューリング状態とライフサイクル状態を公開することで、`CoopContext` がいつ Area を render し、Area の影響下にある Context の末尾をいつ回収できるか判断できるようにします。
+Context Area は、汎用的な `Message` オブジェクトを `CoopContext` に提供する、呼び出し側で定義されたオブジェクトです。また、スケジューリング状態とライフサイクル状態を公開することで、`CoopContext` が Area の次の step をいつ実行し、Area の影響下にある Context の末尾をいつ回収できるか判断できるようにします。
 
 `ContextAreaImplementation` は、構造的部分型に基づく `Protocol` です。Area は Hydrangea の基底クラスを継承する必要がなく、登録用デコレーターも使用しません。契約を満たすすべてのオブジェクトを登録できます。
 
@@ -34,13 +34,13 @@ class OneShotNoticeArea:
     _flow_state: AreaFlowState
 
     _content: str
-    _rendered: bool
+    _stepped: bool
 
     def __init__(self, content: str) -> None:
         self._life_state = AreaLifeState.retain
         self._flow_state = AreaFlowState.yielded
         self._content = content
-        self._rendered = False
+        self._stepped = False
 
     @property
     def life_state(self) -> AreaLifeState:
@@ -56,13 +56,13 @@ class OneShotNoticeArea:
     ) -> None:
         _ = context
 
-    def render(self) -> list[Message]:
-        if self._rendered:
+    def step(self) -> list[Message]:
+        if self._stepped:
             raise RuntimeError(
-                "OneShotNoticeArea rendered more than once."
+                "OneShotNoticeArea stepped more than once."
             )
 
-        self._rendered = True
+        self._stepped = True
         self._life_state = AreaLifeState.retired
         return [
             Message(
@@ -97,19 +97,19 @@ context = Context(GatewayType.gemini)
 coop_context = CoopContext(context)
 coop_context.register(area)
 
-model_context = coop_context.render()
+model_context = coop_context.advance()
 ```
 
-`render()` はプロバイダー互換の `Context` を準備して返します。モデル自体を呼び出すことはありません。
+`advance()` はプロバイダー互換の `Context` を準備して返します。モデル自体を呼び出すことはありません。
 
 ## 契約
 
 | Member | `CoopContext` が参照または呼び出すタイミング | 責務 |
 | --- | --- | --- |
-| `life_state` | 回収判定時および render 前 | Area が引き続き有効なのか、retire 済みなのかを公開します。 |
-| `flow_state` | `render()` が正常に完了した直後 | Area が cursor を保持するか、次の Area に譲るかを選択します。 |
-| `observe(context)` | 2 回目以降の render の直前 | Area の現在の EffectRange に対する、浅い読み取り専用スナップショットを受け取ります。 |
-| `render()` | retain 状態の Area が cursor に到達したとき | Context に追加する、呼び出し側で構築した汎用メッセージを返します。 |
+| `life_state` | 回収判定時および step 前 | Area が引き続き有効なのか、retire 済みなのかを公開します。 |
+| `flow_state` | `step()` が正常に完了した直後 | Area が cursor を保持するか、次の Area に譲るかを選択します。 |
+| `observe(context)` | 2 回目以降の step の直前 | Area の現在の EffectRange に対する、浅い読み取り専用スナップショットを受け取ります。 |
+| `step()` | retain 状態の Area が cursor に到達したとき | Area を一度進め、呼び出し側で構築した汎用メッセージを返します。 |
 | `promote()` | Area が GC 対象に選ばれたとき | 回収後も保持すべき安定したメッセージを返します。 |
 | `gc_prologue()` | Context の切り離し直前 | Area が削除される前に、外部リソースを解放または記録します。 |
 
@@ -117,8 +117,8 @@ model_context = coop_context.render()
 
 `AreaLifeState` はライフサイクルを制御します。
 
-- `retain` は、Area が引き続き observe および render される可能性があることを意味します。
-- `retired` は、Area がこれ以上 render されず、回収可能になったことを意味します。
+- `retain` は、Area が引き続き observe および step される可能性があることを意味します。
+- `retired` は、Area がこれ以上 step されず、回収可能になったことを意味します。
 
 想定される遷移は単調です。
 
@@ -132,7 +132,7 @@ retire は即時破棄を意味しません。別の retain 状態の Area が�
 
 `AreaFlowState` は、ライフサイクルとは独立してスケジューリングを制御します。
 
-- `exclusive` は現在の Area に cursor を保持し、render 後ただちに Context を返します。
+- `exclusive` は現在の Area に cursor を保持し、step 後ただちに Context を返します。
 - `yielded` は cursor を進め、同じ unfold パスに他の Area が参加できるようにします。
 
 複数のモデルターンを必要とする Area は、通常 `exclusive` のまま動作します。処理が完了したら `yielded` に切り替え、必要に応じて retire できます。
@@ -143,20 +143,20 @@ retire は即時破棄を意味しません。別の retain 状態の Area が�
 
 1. Area が retain 状態である。
 2. Area が現在の cursor に到達している。
-3. 以前の空でない `render()` によって、すでに EffectRange が作成されている。
+3. 以前の空でない `step()` によって、すでに EffectRange が作成されている。
 
 渡される `Sequence[NativeContent]` は浅いスナップショットです。この参照を通して sequence の長さを変更することはできませんが、プロバイダー固有の各要素自体は変更可能である場合があります。Area は sequence とその内容の両方を読み取り専用として扱う必要があります。
 
-`observe()` は Area を `retired` に変更できます。その場合、`CoopContext` は現在のパスにおけるその Area の `render()` をスキップします。
+`observe()` は Area を `retired` に変更できます。その場合、`CoopContext` は現在のパスにおけるその Area の `step()` をスキップします。
 
-### `render()`
+### `step()`
 
-`render()` はプロバイダー固有のコンテンツではなく、`list[Message]` を返します。Hydrangea は有効なプロバイダー実装を通して各メッセージを変換し、`Context.emplace_message()` で追加します。
+`step()` は Area を一度進め、プロバイダー固有のコンテンツではなく `list[Message]` を返します。Hydrangea は有効なプロバイダー実装を通して各メッセージを変換し、`Context.emplace_message()` で追加します。
 
 - 空でない結果は、Area の EffectRange を作成または拡張します。
 - 空の結果は、EffectRange を作成も更新もしません。
-- 最初の空でない render によって `earliest` が確定します。
-- その後の空でない render は、新しく追加された最後のメッセージまで `latest` を移動します。
+- 最初の空でない step によって `earliest` が確定します。
+- その後の空でない step は、新しく追加された最後のメッセージまで `latest` を移動します。
 
 EffectRange は Area の位置的な影響範囲を表し、区間内のすべての要素に対する排他的な所有権を表すものではありません。モデルのレスポンスや他の Area の出力が、`earliest` と `latest` の間に含まれる場合があります。
 
@@ -184,11 +184,11 @@ def promote(self) -> tuple[Message, ...]:
 ```mermaid
 flowchart TD
     accTitle: Context Area のライフサイクル
-    accDescr: CoopContext は retain 状態の Area を繰り返し observe および render し、Area が retire した後は promote と回収が可能になるまで待機します。
+    accDescr: CoopContext は retain 状態の Area を繰り返し observe および step し、Area が retire した後は promote と回収が可能になるまで待機します。
 
     Register["Area を登録"] --> Retain["Area: retain"]
     Retain --> Observe["EffectRange があれば<br/>observe()"]
-    Observe --> Render["retain のままなら<br/>render()"]
+    Observe --> Render["retain のままなら<br/>step()"]
     Render --> Messages["list[Message] を返す"]
     Messages --> Flow{"Area flow_state"}
 
@@ -204,7 +204,7 @@ flowchart TD
     Prologue --> Removed["Area を削除"]
 ```
 
-回収は、その後の `CoopContext.render()` 呼び出しの先頭で行われます。これにより、Context の使用中に変更するのではなく、モデル呼び出し間にセーフポイントが形成されます。
+回収は、その後の `CoopContext.advance()` 呼び出しの先頭で行われます。これにより、Context の使用中に変更するのではなく、モデル呼び出し間にセーフポイントが形成されます。
 
 ## EffectRange と回収
 
@@ -218,7 +218,7 @@ Collector は、EffectRange が Context の末尾方向へ最も遠く到達し�
 
 - 同じ Area インスタンスを複数回登録しないでください。
 - `retain -> retired` を不可逆な遷移として扱ってください。
-- スケジューリング状態とライフサイクル状態は、GC コールバックではなく `observe()` または `render()` から変更してください。
+- スケジューリング状態とライフサイクル状態は、GC コールバックではなく `observe()` または `step()` から変更してください。
 - 汎用的な `Message` を返してください。Area 内でプロバイダー固有の Context 要素を構築しないでください。
 - `observe()` から受け取った `NativeContent` オブジェクトを変更しないでください。
 - retire が即時回収を意味すると仮定しないでください。

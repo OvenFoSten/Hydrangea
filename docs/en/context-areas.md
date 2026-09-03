@@ -9,7 +9,7 @@ lang: en
 
 <p><strong>English</strong> · <a href="{% link ja/context-areas.md %}">日本語</a></p>
 
-A Context Area is a caller-defined object that contributes generic `Message` objects to a `CoopContext`. It also exposes its scheduling and lifetime state so that `CoopContext` can decide when to render it and when its affected Context tail may be reclaimed.
+A Context Area is a caller-defined object that contributes generic `Message` objects to a `CoopContext`. It also exposes its scheduling and lifetime state so that `CoopContext` can decide when to execute its next step and when its affected Context tail may be reclaimed.
 
 `ContextAreaImplementation` is a structural `Protocol`. An Area does not inherit from a Hydrangea base class and does not use a registration decorator. Any object that satisfies the contract can be registered.
 
@@ -34,13 +34,13 @@ class OneShotNoticeArea:
     _flow_state: AreaFlowState
 
     _content: str
-    _rendered: bool
+    _stepped: bool
 
     def __init__(self, content: str) -> None:
         self._life_state = AreaLifeState.retain
         self._flow_state = AreaFlowState.yielded
         self._content = content
-        self._rendered = False
+        self._stepped = False
 
     @property
     def life_state(self) -> AreaLifeState:
@@ -56,13 +56,13 @@ class OneShotNoticeArea:
     ) -> None:
         _ = context
 
-    def render(self) -> list[Message]:
-        if self._rendered:
+    def step(self) -> list[Message]:
+        if self._stepped:
             raise RuntimeError(
-                "OneShotNoticeArea rendered more than once."
+                "OneShotNoticeArea stepped more than once."
             )
 
-        self._rendered = True
+        self._stepped = True
         self._life_state = AreaLifeState.retired
         return [
             Message(
@@ -97,19 +97,19 @@ context = Context(GatewayType.gemini)
 coop_context = CoopContext(context)
 coop_context.register(area)
 
-model_context = coop_context.render()
+model_context = coop_context.advance()
 ```
 
-`render()` prepares and returns the provider-compatible `Context`; it does not invoke the model itself.
+`advance()` prepares and returns the provider-compatible `Context`; it does not invoke the model itself.
 
 ## Contract
 
 | Member | Called or read by `CoopContext` | Responsibility |
 | --- | --- | --- |
-| `life_state` | During collection and before rendering | Exposes whether the Area remains active or has retired. |
-| `flow_state` | After every successful `render()` | Chooses whether this Area keeps the cursor or yields to the next Area. |
-| `observe(context)` | Immediately before a repeated render | Observes a shallow, read-only snapshot of the Area's current EffectRange. |
-| `render()` | When a retained Area reaches the cursor | Returns generic, caller-constructed messages to append to Context. |
+| `life_state` | During collection and before stepping | Exposes whether the Area remains active or has retired. |
+| `flow_state` | After every successful `step()` | Chooses whether this Area keeps the cursor or yields to the next Area. |
+| `observe(context)` | Immediately before a repeated step | Observes a shallow, read-only snapshot of the Area's current EffectRange. |
+| `step()` | When a retained Area reaches the cursor | Advances the Area once and returns generic, caller-constructed messages. |
 | `promote()` | Once the Area is selected for GC | Returns stable messages that must survive reclamation. |
 | `gc_prologue()` | Immediately before Context detachment | Releases or records external resources before the Area is removed. |
 
@@ -117,8 +117,8 @@ model_context = coop_context.render()
 
 `AreaLifeState` controls lifetime:
 
-- `retain` means that the Area may still observe and render.
-- `retired` means that the Area will no longer render and is eligible for collection.
+- `retain` means that the Area may still observe and step.
+- `retired` means that the Area will no longer step and is eligible for collection.
 
 The intended transition is monotonic:
 
@@ -132,7 +132,7 @@ Retirement is not immediate destruction. A retired Area can remain registered wh
 
 `AreaFlowState` controls scheduling independently from lifetime:
 
-- `exclusive` keeps the cursor on the current Area and returns the Context immediately after its render.
+- `exclusive` keeps the cursor on the current Area and returns the Context immediately after its step.
 - `yielded` advances the cursor and allows other Areas to participate in the same unfold pass.
 
 An Area that needs several model turns normally remains `exclusive`. Once that operation completes, it can switch to `yielded` and optionally retire.
@@ -143,20 +143,20 @@ An Area that needs several model turns normally remains `exclusive`. Once that o
 
 1. The Area is retained.
 2. It reaches the current cursor.
-3. A previous non-empty `render()` has already created an EffectRange.
+3. A previous non-empty `step()` has already created an EffectRange.
 
 The supplied `Sequence[NativeContent]` is a shallow snapshot. The sequence cannot be resized through this reference, but its provider-native elements may themselves be mutable. An Area must treat both the sequence and its contents as read-only.
 
-`observe()` may change the Area to `retired`. If it does, `CoopContext` skips that Area's `render()` for the current pass.
+`observe()` may change the Area to `retired`. If it does, `CoopContext` skips that Area's `step()` for the current pass.
 
-### `render()`
+### `step()`
 
-`render()` returns `list[Message]`, not provider-native content. Hydrangea converts each message through the active provider implementation and appends it with `Context.emplace_message()`.
+`step()` advances the Area once and returns `list[Message]`, not provider-native content. Hydrangea converts each message through the active provider implementation and appends it with `Context.emplace_message()`.
 
 - A non-empty result creates or extends the Area's EffectRange.
 - An empty result does not create or update an EffectRange.
-- The first non-empty render fixes `earliest`.
-- Later non-empty renders move `latest` to the last newly appended message.
+- The first non-empty step fixes `earliest`.
+- Later non-empty steps move `latest` to the last newly appended message.
 
 The EffectRange describes the Area's positional influence, not exclusive ownership of every item inside the interval. Model responses and output from other Areas may appear between its earliest and latest positions.
 
@@ -184,11 +184,11 @@ Changing Area state from this callback has no effect on the active collection pl
 ```mermaid
 flowchart TD
     accTitle: Context Area lifecycle
-    accDescr: CoopContext repeatedly observes and renders a retained Area, then waits until a retired Area can be promoted and reclaimed.
+    accDescr: CoopContext repeatedly observes and steps a retained Area, then waits until a retired Area can be promoted and reclaimed.
 
     Register["CoopContext registers Area"] --> Retain["Area is retained"]
     Retain --> Observe["CoopContext calls observe()<br/>if an EffectRange exists"]
-    Observe --> Render["CoopContext calls render()<br/>if Area remains retained"]
+    Observe --> Render["CoopContext calls step()<br/>if Area remains retained"]
     Render --> Messages["Area returns list[Message]"]
     Messages --> Flow{"Area flow_state"}
 
@@ -204,7 +204,7 @@ flowchart TD
     Prologue --> Removed["CoopContext removes Area"]
 ```
 
-Collection happens at the beginning of a later `CoopContext.render()` call. This creates a safe point between model invocations rather than modifying Context while it is in use.
+Collection happens at the beginning of a later `CoopContext.advance()` call. This creates a safe point between model invocations rather than modifying Context while it is in use.
 
 ## EffectRange and collection
 
@@ -218,7 +218,7 @@ This restriction preserves the append-only Context prefix expected by provider-n
 
 - Register each Area instance only once.
 - Treat `retain -> retired` as irreversible.
-- Change scheduling and lifetime state from `observe()` or `render()`, not from GC callbacks.
+- Change scheduling and lifetime state from `observe()` or `step()`, not from GC callbacks.
 - Return generic `Message` objects; never construct provider-native Context items inside an Area.
 - Do not mutate the `NativeContent` objects received by `observe()`.
 - Do not assume that retirement implies immediate collection.
