@@ -53,7 +53,7 @@ class LLM:
         context: Context,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
-        temperature:float | None
+        temperature:float | None = None
     ) -> NativeContent:
         return self._native.invoke(
             context=context.implementation,
