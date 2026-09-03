@@ -115,7 +115,7 @@ class _AuthoritativeStateArea:
             "A retired authoritative Area must not be observed."
         )
 
-    def render(self) -> list[Message]:
+    def advance(self) -> list[Message]:
         self._events.append("authority:publish")
         self._life_state = AreaLifeState.retired
         return [
@@ -177,7 +177,7 @@ class _SkillInteractionArea:
 
         self._model_action = action
 
-    def render(self) -> list[Message]:
+    def advance(self) -> list[Message]:
         if not self._guidance_published:
             self._events.append("skill:guide")
             self._guidance_published = True
@@ -190,7 +190,7 @@ class _SkillInteractionArea:
 
         if self._model_action is None:
             raise RuntimeError(
-                "SkillInteractionArea rendered before model action."
+                "SkillInteractionArea advanced before model action."
             )
 
         self._events.append("skill:complete-action")
@@ -262,7 +262,7 @@ class _AutomaticCompactArea:
 
         self._summary = summary
 
-    def render(self) -> list[Message]:
+    def advance(self) -> list[Message]:
         if self._phase is _CompactPhase.opening:
             self._events.append("compact:open")
             self._phase = _CompactPhase.working
@@ -287,7 +287,7 @@ class _AutomaticCompactArea:
         if self._phase is _CompactPhase.awaiting_summary:
             if self._summary is None:
                 raise RuntimeError(
-                    "AutomaticCompactArea rendered before summary."
+                    "AutomaticCompactArea advanced before summary."
                 )
 
             self._events.append("compact:seal")
@@ -302,7 +302,7 @@ class _AutomaticCompactArea:
             ]
 
         raise RuntimeError(
-            "AutomaticCompactArea rendered after sealing."
+            "AutomaticCompactArea advanced after sealing."
         )
 
     def promote(self) -> tuple[Message, ...]:
@@ -338,7 +338,7 @@ def test_authority_skill_and_compaction_workflow() -> None:
     for area in (compact, authority, skill):
         coop_context.register(area)
 
-    first_model_context = coop_context.render()
+    first_model_context = coop_context.advance()
 
     assert first_model_context is context
     assert authority.life_state is AreaLifeState.retired
@@ -352,7 +352,7 @@ def test_authority_skill_and_compaction_workflow() -> None:
     _append_model_response(context, _MODEL_ACTION)
     skill.accept_model_action(_MODEL_ACTION)
 
-    second_model_context = coop_context.render()
+    second_model_context = coop_context.advance()
 
     assert second_model_context is context
     assert skill.life_state is AreaLifeState.retired
@@ -375,7 +375,7 @@ def test_authority_skill_and_compaction_workflow() -> None:
     _append_model_response(context, _MODEL_SUMMARY)
     compact.accept_summary(_MODEL_SUMMARY)
 
-    sealed_context = coop_context.render()
+    sealed_context = coop_context.advance()
 
     assert sealed_context is context
     assert compact.life_state is AreaLifeState.retired
@@ -401,7 +401,7 @@ def test_authority_skill_and_compaction_workflow() -> None:
         ("user", _COMPACT_SEAL),
     )
 
-    compacted_context = coop_context.render()
+    compacted_context = coop_context.advance()
 
     assert compacted_context is context
     assert _context_structure(native) == (
@@ -435,7 +435,7 @@ def test_authority_skill_and_compaction_workflow() -> None:
         "compact:gc",
     ]
 
-    assert coop_context.render() is context
+    assert coop_context.advance() is context
     assert _context_structure(native) == (
         ("user", _PROMOTED_SUMMARY),
     )

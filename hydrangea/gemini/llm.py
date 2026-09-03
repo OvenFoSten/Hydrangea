@@ -88,7 +88,7 @@ class Gemini:
         context: ContextImplementation,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
-        temperature:float
+        temperature:float | None
     ) -> types.Content:
         if not isinstance(context, GeminiContext):
             raise TypeError(
