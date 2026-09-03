@@ -10,6 +10,7 @@ from .context import (
 )
 from .gateway import GatewayType
 from .gemini.llm import Gemini
+from .openai.llm import OpenAI
 from .reasoning import ReasoningEffort
 from .tool import ToolDeclaration
 
@@ -41,6 +42,12 @@ class LLM:
         match gateway_type:
             case GatewayType.gemini:
                 self._native = Gemini.from_llm_config(
+                    config=config,
+                    instruction=instruction,
+                )
+
+            case GatewayType.openai:
+                self._native = OpenAI.from_llm_config(
                     config=config,
                     instruction=instruction,
                 )

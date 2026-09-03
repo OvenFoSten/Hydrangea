@@ -6,6 +6,10 @@ from typing_extensions import assert_never
 
 from ..gateway import GatewayType
 from ..gemini.context import GeminiContext
+from ..openai.context import (
+    OpenAIContext,
+    OpenAIContextContent,
+)
 from ..message import (
     FunctionReply,
     FunctionReplyTurn,
@@ -14,8 +18,11 @@ from ..message import (
     ToolCall,
 )
 
-NativeContext: TypeAlias = GeminiContext
-NativeContent: TypeAlias = types.Content
+NativeContext: TypeAlias = GeminiContext | OpenAIContext
+NativeContent: TypeAlias = (
+    types.Content
+    | OpenAIContextContent
+)
 
 
 class ContextImplementation(Protocol):
@@ -63,13 +70,29 @@ class Context:
             case GatewayType.gemini:
                 if native is None:
                     context = GeminiContext()
-                # TODO: Remove ignore when have Another Provider
-                elif isinstance(native, GeminiContext):  # pyright: ignore[reportUnnecessaryIsInstance]
+                elif isinstance(native, GeminiContext):
                     context = native
                 else:
-                    assert_never(native)
+                    raise TypeError(
+                        "Context implementation does not match Gemini: "
+                        f"got {type(native).__name__}."
+                    )
 
                 self._gateway_type = GatewayType.gemini
+                self._native = context
+
+            case GatewayType.openai:
+                if native is None:
+                    context = OpenAIContext()
+                elif isinstance(native, OpenAIContext):
+                    context = native
+                else:
+                    raise TypeError(
+                        "Context implementation does not match OpenAI: "
+                        f"got {type(native).__name__}."
+                    )
+
+                self._gateway_type = GatewayType.openai
                 self._native = context
 
             case _:

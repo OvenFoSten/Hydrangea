@@ -14,6 +14,7 @@ Cooperative Context（`CoopContext`）は、呼び出し側が定義した Conte
 ## 現在の対応範囲
 
 - `google-genai` 2.10.0 を利用した Google Gemini
+- `openai` 2.x の Chat Completions を利用した OpenAI
 - OpenAI 互換の埋め込みエンドポイント
 
 ## 開発用インストール

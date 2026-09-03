@@ -12,7 +12,9 @@ from hydrangea.gemini.context import GeminiContext
 from hydrangea.message import Message, Role
 
 
-def _content_text(content: types.Content) -> str:
+def _content_text(content: NativeContent) -> str:
+    assert isinstance(content, types.Content)
+
     parts = content.parts
     assert parts is not None
     assert len(parts) == 1

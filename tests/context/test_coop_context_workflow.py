@@ -34,7 +34,9 @@ _PROMOTED_SUMMARY = (
 )
 
 
-def _content_text(content: types.Content) -> str:
+def _content_text(content: NativeContent) -> str:
+    assert isinstance(content, types.Content)
+
     parts = content.parts
     assert parts is not None
     assert len(parts) == 1

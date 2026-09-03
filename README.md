@@ -14,6 +14,7 @@ Cooperative Context (`CoopContext`) allows caller-defined Context Areas to contr
 ## Current support
 
 - Google Gemini via `google-genai` 2.10.0
+- OpenAI via Chat Completions using `openai` 2.x
 - OpenAI-compatible embedding endpoints
 
 ## Development installation
