@@ -38,6 +38,20 @@ class CoopContext:
         self._area_cursor_store = None
 
     def register(self,area:ContextAreaImplementation)->None:
+        try:
+            _ = hash(area)
+        except TypeError as error:
+            raise TypeError(
+                "Context Area must be hashable."
+            ) from error
+
+        if any(
+            registered is area
+            for registered in self._areas
+        ):
+            raise ValueError(
+                "Context Area instance is already registered."
+            )
         self._areas.append(area)
 
     def _collect(self)->_CollectionPlan|None:
