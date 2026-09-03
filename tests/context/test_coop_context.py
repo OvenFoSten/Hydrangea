@@ -123,17 +123,17 @@ def test_observe_only_updates_areas_reached_by_cursor() -> None:
     context.register(exclusive)
     context.register(hidden_tail)
 
-    _ = context.render()
+    _ = context.advance()
     assert yielded_prefix.observed_count == 0
     assert exclusive.observed_count == 0
     assert hidden_tail.observed_count == 0
 
-    _ = context.render()
+    _ = context.advance()
     assert yielded_prefix.observed_count == 0
     assert exclusive.observed_count == 1
     assert hidden_tail.observed_count == 0
 
-    _ = context.render()
+    _ = context.advance()
     assert yielded_prefix.observed_count == 0
     assert exclusive.observed_count == 2
     assert hidden_tail.observed_count == 0
@@ -238,7 +238,7 @@ def test_render_can_collect_entire_heap_without_cursor() -> None:
         only_area: _EffectRange(ContextIndex(0), ContextIndex(1)),
     }
 
-    result = context.render()
+    result = context.advance()
 
     assert result is context._context
     assert context._areas == []

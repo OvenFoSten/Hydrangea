@@ -73,7 +73,7 @@ class _AuthoritativeMessageArea:
     ) -> None:
         _ = context
 
-    def render(self) -> list[Message]:
+    def advance(self) -> list[Message]:
         if self._rendered:
             raise RuntimeError(
                 "AuthoritativeMessageArea rendered more than once."
@@ -128,7 +128,7 @@ class _CountingArea:
     ) -> None:
         _ = context
 
-    def render(self) -> list[Message]:
+    def advance(self) -> list[Message]:
         if self._life_state is AreaLifeState.retired:
             raise RuntimeError(
                 "CountingArea rendered after retirement."
@@ -197,8 +197,8 @@ class _ThresholdCompactArea:
         if observed_length >= self._threshold:
             self._life_state = AreaLifeState.retired
 
-    def render(self) -> list[Message]:
-        messages = self._inner.render()
+    def advance(self) -> list[Message]:
+        messages = self._inner.advance()
         self._messages.extend(messages)
         return messages
 
@@ -227,7 +227,7 @@ def test_authoritative_message_area_retires_after_publish() -> None:
     coop_context = CoopContext(context)
     coop_context.register(area)
 
-    rendered_context = coop_context.render()
+    rendered_context = coop_context.advance()
 
     assert rendered_context is context
     assert area.life_state is AreaLifeState.retired
@@ -235,7 +235,7 @@ def test_authoritative_message_area_retires_after_publish() -> None:
         ("user", "authoritative source"),
     )
 
-    rendered_context = coop_context.render()
+    rendered_context = coop_context.advance()
 
     assert rendered_context is context
     assert area.gc_called
@@ -252,7 +252,7 @@ def test_counting_area_outputs_one_through_ten() -> None:
     coop_context.register(area)
 
     for expected_value in range(1, 11):
-        rendered_context = coop_context.render()
+        rendered_context = coop_context.advance()
 
         assert rendered_context is context
         assert _context_structure(native) == tuple(
@@ -262,7 +262,7 @@ def test_counting_area_outputs_one_through_ten() -> None:
 
     assert area.life_state is AreaLifeState.retired
 
-    rendered_context = coop_context.render()
+    rendered_context = coop_context.advance()
 
     assert rendered_context is context
     assert area.gc_called
@@ -284,7 +284,7 @@ def test_compact_area_wraps_an_area_and_promotes_summary() -> None:
     coop_context.register(area)
 
     for expected_value in range(1, 5):
-        rendered_context = coop_context.render()
+        rendered_context = coop_context.advance()
 
         assert rendered_context is context
         assert _context_structure(native) == tuple(
@@ -295,7 +295,7 @@ def test_compact_area_wraps_an_area_and_promotes_summary() -> None:
     assert area.life_state is AreaLifeState.retain
     assert area.observed_lengths == [1, 2, 3]
 
-    rendered_context = coop_context.render()
+    rendered_context = coop_context.advance()
 
     assert rendered_context is context
     assert area.life_state is AreaLifeState.retired
@@ -308,7 +308,7 @@ def test_compact_area_wraps_an_area_and_promotes_summary() -> None:
         ("user", "4"),
     )
 
-    rendered_context = coop_context.render()
+    rendered_context = coop_context.advance()
 
     assert rendered_context is context
     assert area.gc_called

@@ -171,7 +171,7 @@ class CoopContext:
             self._context.emplace_message(promote)
 
 
-    def render(self)->Context:
+    def advance(self)->Context:
         if not self._areas:
             return self._context
 
@@ -216,7 +216,7 @@ class CoopContext:
                     continue
 
             # Render Content
-            content = area_cursor.render()
+            content = area_cursor.advance()
             if content:
                 # Calc Effect Range
                 effect_start = ContextIndex(len(self._context))
