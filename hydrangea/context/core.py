@@ -116,7 +116,7 @@ class Context:
         return self._gateway_type
 
     @property
-    def implementation(self) -> ContextImplementation:
+    def native(self) -> ContextImplementation:
         return self._native
 
     def __len__(self) -> int:

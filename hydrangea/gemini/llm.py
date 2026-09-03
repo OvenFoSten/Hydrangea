@@ -8,7 +8,6 @@ from .config import (
 )
 from .context import GeminiContext
 from ..config import LLMConfig
-from ..context import ContextImplementation
 from ..gateway import GatewayType
 from ..instruction import SystemInstruction
 from ..reasoning import ReasoningEffort
@@ -85,7 +84,7 @@ class Gemini:
 
     def invoke(
         self,
-        context: ContextImplementation,
+        context: object,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
         temperature:float | None
