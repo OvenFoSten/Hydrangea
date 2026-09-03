@@ -49,14 +49,14 @@ class _AuthoritativeMessageArea:
     _life_state: AreaLifeState
     _flow_state: AreaFlowState
     _content: str
-    _rendered: bool
+    _advanced: bool
     gc_called: bool
 
     def __init__(self, content: str) -> None:
         self._life_state = AreaLifeState.retain
         self._flow_state = AreaFlowState.exclusive
         self._content = content
-        self._rendered = False
+        self._advanced = False
         self.gc_called = False
 
     @property
@@ -74,12 +74,12 @@ class _AuthoritativeMessageArea:
         _ = context
 
     def advance(self) -> list[Message]:
-        if self._rendered:
+        if self._advanced:
             raise RuntimeError(
-                "AuthoritativeMessageArea rendered more than once."
+                "AuthoritativeMessageArea advanced more than once."
             )
 
-        self._rendered = True
+        self._advanced = True
         self._life_state = AreaLifeState.retired
         return [
             Message(
@@ -131,7 +131,7 @@ class _CountingArea:
     def advance(self) -> list[Message]:
         if self._life_state is AreaLifeState.retired:
             raise RuntimeError(
-                "CountingArea rendered after retirement."
+                "CountingArea advanced after retirement."
             )
 
         value = self._next_value
@@ -227,17 +227,17 @@ def test_authoritative_message_area_retires_after_publish() -> None:
     coop_context = CoopContext(context)
     coop_context.register(area)
 
-    rendered_context = coop_context.advance()
+    advanced_context = coop_context.advance()
 
-    assert rendered_context is context
+    assert advanced_context is context
     assert area.life_state is AreaLifeState.retired
     assert _context_structure(native) == (
         ("user", "authoritative source"),
     )
 
-    rendered_context = coop_context.advance()
+    advanced_context = coop_context.advance()
 
-    assert rendered_context is context
+    assert advanced_context is context
     assert area.gc_called
     assert _context_structure(native) == ()
     assert [_content_text(item) for item in coop_context.garbage] == [
@@ -252,9 +252,9 @@ def test_counting_area_outputs_one_through_ten() -> None:
     coop_context.register(area)
 
     for expected_value in range(1, 11):
-        rendered_context = coop_context.advance()
+        advanced_context = coop_context.advance()
 
-        assert rendered_context is context
+        assert advanced_context is context
         assert _context_structure(native) == tuple(
             ("user", str(value))
             for value in range(1, expected_value + 1)
@@ -262,9 +262,9 @@ def test_counting_area_outputs_one_through_ten() -> None:
 
     assert area.life_state is AreaLifeState.retired
 
-    rendered_context = coop_context.advance()
+    advanced_context = coop_context.advance()
 
-    assert rendered_context is context
+    assert advanced_context is context
     assert area.gc_called
     assert _context_structure(native) == ()
     assert [_content_text(item) for item in coop_context.garbage] == [
@@ -284,9 +284,9 @@ def test_compact_area_wraps_an_area_and_promotes_summary() -> None:
     coop_context.register(area)
 
     for expected_value in range(1, 5):
-        rendered_context = coop_context.advance()
+        advanced_context = coop_context.advance()
 
-        assert rendered_context is context
+        assert advanced_context is context
         assert _context_structure(native) == tuple(
             ("user", str(value))
             for value in range(1, expected_value + 1)
@@ -295,9 +295,9 @@ def test_compact_area_wraps_an_area_and_promotes_summary() -> None:
     assert area.life_state is AreaLifeState.retain
     assert area.observed_lengths == [1, 2, 3]
 
-    rendered_context = coop_context.advance()
+    advanced_context = coop_context.advance()
 
-    assert rendered_context is context
+    assert advanced_context is context
     assert area.life_state is AreaLifeState.retired
     assert area.observed_lengths == [1, 2, 3, 4]
     assert not area.gc_called
@@ -308,9 +308,9 @@ def test_compact_area_wraps_an_area_and_promotes_summary() -> None:
         ("user", "4"),
     )
 
-    rendered_context = coop_context.advance()
+    advanced_context = coop_context.advance()
 
-    assert rendered_context is context
+    assert advanced_context is context
     assert area.gc_called
     assert inner.gc_called
     assert [_content_text(item) for item in coop_context.garbage] == [

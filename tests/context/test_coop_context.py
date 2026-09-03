@@ -2,6 +2,9 @@
 
 from collections.abc import Sequence
 
+import pytest
+from typing_extensions import override
+
 from hydrangea.context import Context, NativeContent
 from hydrangea.context.area import AreaFlowState, AreaLifeState
 from hydrangea.context.coop_context import (
@@ -18,7 +21,7 @@ class _FakeArea:
     _life_state: AreaLifeState
     _flow_state: AreaFlowState
     _events: list[str]
-    _render_content: bool
+    _advance_content: bool
     observed_count: int
 
     def __init__(
@@ -26,13 +29,13 @@ class _FakeArea:
         name: str,
         life_state: AreaLifeState,
         events: list[str],
-        render_content: bool = False,
+        advance_content: bool = False,
     ) -> None:
         self.name = name
         self._life_state = life_state
         self._flow_state = AreaFlowState.yielded
         self._events = events
-        self._render_content = render_content
+        self._advance_content = advance_content
         self.observed_count = 0
 
     @property
@@ -50,14 +53,14 @@ class _FakeArea:
         _ = context
         self.observed_count += 1
 
-    def render(self) -> list[Message]:
-        if not self._render_content:
+    def advance(self) -> list[Message]:
+        if not self._advance_content:
             return []
 
         return [
             Message(
                 role=Role.user,
-                content=f"rendered:{self.name}",
+                content=f"advanced:{self.name}",
             )
         ]
 
@@ -72,6 +75,12 @@ class _FakeArea:
 
     def gc_prologue(self) -> None:
         self._events.append(f"gc:{self.name}")
+
+
+class _UnhashableFakeArea(_FakeArea):
+    @override
+    def __hash__(self) -> int:
+        raise TypeError("unhashable test Area")
 
 
 def _context_with_messages(count: int) -> Context:
@@ -96,26 +105,61 @@ def test_context_slice_uses_python_bounds() -> None:
     assert len(context[-2:]) == 2
 
 
+def test_register_rejects_unhashable_area() -> None:
+    context = CoopContext(_context_with_messages(0))
+    area = _UnhashableFakeArea(
+        "unhashable",
+        AreaLifeState.retain,
+        [],
+    )
+
+    with pytest.raises(
+        TypeError,
+        match="Context Area must be hashable",
+    ):
+        context.register(area)
+
+    assert context._areas == []
+
+
+def test_register_rejects_duplicate_instance() -> None:
+    context = CoopContext(_context_with_messages(0))
+    area = _FakeArea(
+        "duplicate",
+        AreaLifeState.retain,
+        [],
+    )
+    context.register(area)
+
+    with pytest.raises(
+        ValueError,
+        match="Context Area instance is already registered",
+    ):
+        context.register(area)
+
+    assert context._areas == [area]
+
+
 def test_observe_only_updates_areas_reached_by_cursor() -> None:
     events: list[str] = []
     yielded_prefix = _FakeArea(
         "yielded-prefix",
         AreaLifeState.retain,
         events,
-        render_content=True,
+        advance_content=True,
     )
     exclusive = _FakeArea(
         "exclusive",
         AreaLifeState.retain,
         events,
-        render_content=True,
+        advance_content=True,
     )
     exclusive._flow_state = AreaFlowState.exclusive
     hidden_tail = _FakeArea(
         "hidden-tail",
         AreaLifeState.retain,
         events,
-        render_content=True,
+        advance_content=True,
     )
 
     context = CoopContext(_context_with_messages(0))
@@ -228,7 +272,7 @@ def test_cursor_repair_uses_collection_membership() -> None:
     assert tuple(context._area_mapping) == (disjoint,)
 
 
-def test_render_can_collect_entire_heap_without_cursor() -> None:
+def test_advance_can_collect_entire_heap_without_cursor() -> None:
     events: list[str] = []
     only_area = _FakeArea("only", AreaLifeState.retired, events)
 
