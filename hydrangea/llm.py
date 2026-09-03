@@ -56,7 +56,7 @@ class LLM:
         temperature:float | None = None
     ) -> NativeContent:
         return self._native.invoke(
-            context=context.implementation,
+            context=context.native,
             effort=effort,
             tool_declarations=tool_declarations,
             temperature=temperature
