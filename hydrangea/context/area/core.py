@@ -6,45 +6,48 @@ from enum import Enum, auto
 from ..core import NativeContent
 from ...message import Message
 
+
 class LifeState(Enum):
-    retain = auto() # Do nothing
-    retired = auto() # Ready for GC
+    retain = auto()  # Do nothing
+    retired = auto()  # Ready for GC
+
 
 class FlowState(Enum):
     exclusive = auto()
     yielded = auto()
 
+
 class ContextAreaImplementation(Protocol):
-    
-    _life_state:LifeState
-    _flow_state:FlowState
+
+    _life_state: LifeState
+    _flow_state: FlowState
 
     @property
-    def life_state(self)->LifeState:
+    def life_state(self) -> LifeState:
         ...
 
     @property
-    def flow_state(self)->FlowState:
+    def flow_state(self) -> FlowState:
         ...
 
     def observe(
         self,
-        context:Sequence[NativeContent],
-    )->None:
+        context: Sequence[NativeContent],
+    ) -> None:
         '''
         Observe the Context range currently owned by this Area.
         The supplied Sequence is a shallow, read-only snapshot.
         '''
         ...
-    
-    def tick(self)->list[Message]:
+
+    def tick(self) -> list[Message]:
         '''
         tick() returns caller-constructed messages that will be appended to Context.
         Once tick() is called, CoopContext considers this Area to have produced an effect.
         '''
         ...
 
-    def promote(self)->tuple[Message,...]:
+    def promote(self) -> tuple[Message, ...]:
         '''
         .promote() will be executed when .life_state is "retired".
         Once .life_state is "retired", Area will be marked by Collector.
@@ -57,7 +60,7 @@ class ContextAreaImplementation(Protocol):
         '''
         ...
 
-    def gc_prologue(self)->None:
+    def gc_prologue(self) -> None:
         '''
         .gc_prologue is a notification to Area.
         It means this Area will be collected immedieatly.
