@@ -33,7 +33,6 @@ def _reasoning_effort_to_gemini_thinking_level(
 
         case _:
             assert_never(effort)
-            
 
 
 def _tool_declaration_to_gemini_declaration(
@@ -59,7 +58,7 @@ class Gemini:
     def __init__(
         self,
         config: GeminiConfig,
-        instruction:SystemInstruction
+        instruction: SystemInstruction
     ) -> None:
         self._instruction = instruction
         self._config = config
@@ -71,11 +70,11 @@ class Gemini:
     def from_llm_config(
         cls,
         config: LLMConfig,
-        instruction:SystemInstruction
+        instruction: SystemInstruction
     ) -> "Gemini":
         return cls(
             config=llm_config_to_gemini_config(config),
-            instruction = instruction
+            instruction=instruction
         )
 
     @property
@@ -87,12 +86,12 @@ class Gemini:
         context: object,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
-        temperature:float | None
+        temperature: float | None
     ) -> types.Content:
         if not isinstance(context, GeminiContext):
             raise TypeError(
-                "Context implementation does not match Gemini: "+
-                "expected GeminiContext, got "+
+                "Context implementation does not match Gemini: " +
+                "expected GeminiContext, got " +
                 f"{type(context).__name__}."
             )
 
@@ -139,14 +138,14 @@ class Gemini:
         candidates = response.candidates
         if not candidates:
             raise ValueError(
-                "No candidates from Google, "+
+                "No candidates from Google, " +
                 "please check the API availability."
             )
 
         content = candidates[0].content
         if content is None:
             raise ValueError(
-                "No content from Google, "+
+                "No content from Google, " +
                 "please check the API availability."
             )
 
