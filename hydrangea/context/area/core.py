@@ -37,10 +37,10 @@ class ContextAreaImplementation(Protocol):
         '''
         ...
     
-    def advance(self)->list[Message]:
+    def tick(self)->list[Message]:
         '''
-        advance() returns caller-constructed messages that will be appended to Context.
-        Once advance() is called, CoopContext considers this Area to have produced an effect.
+        tick() returns caller-constructed messages that will be appended to Context.
+        Once tick() is called, CoopContext considers this Area to have produced an effect.
         '''
         ...
 

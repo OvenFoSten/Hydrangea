@@ -230,7 +230,7 @@ class CoopContext:
                     continue
 
             # Render Content
-            content = area_cursor.advance()
+            content = area_cursor.tick()
             if content:
                 # Calc Effect Range
                 effect_start = ContextIndex(len(self._context))
