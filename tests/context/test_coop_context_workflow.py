@@ -340,7 +340,7 @@ def test_authority_skill_and_compaction_workflow() -> None:
     for area in (compact, authority, skill):
         coop_context.register(area)
 
-    first_model_context = coop_context.advance()
+    first_model_context = coop_context.unfold()
 
     assert first_model_context is context
     assert authority.life_state is AreaLifeState.retired
@@ -354,7 +354,7 @@ def test_authority_skill_and_compaction_workflow() -> None:
     _append_model_response(context, _MODEL_ACTION)
     skill.accept_model_action(_MODEL_ACTION)
 
-    second_model_context = coop_context.advance()
+    second_model_context = coop_context.unfold()
 
     assert second_model_context is context
     assert skill.life_state is AreaLifeState.retired
@@ -377,7 +377,7 @@ def test_authority_skill_and_compaction_workflow() -> None:
     _append_model_response(context, _MODEL_SUMMARY)
     compact.accept_summary(_MODEL_SUMMARY)
 
-    sealed_context = coop_context.advance()
+    sealed_context = coop_context.unfold()
 
     assert sealed_context is context
     assert compact.life_state is AreaLifeState.retired
@@ -403,7 +403,7 @@ def test_authority_skill_and_compaction_workflow() -> None:
         ("user", _COMPACT_SEAL),
     )
 
-    compacted_context = coop_context.advance()
+    compacted_context = coop_context.unfold()
 
     assert compacted_context is context
     assert _context_structure(native) == (
@@ -437,7 +437,7 @@ def test_authority_skill_and_compaction_workflow() -> None:
         "compact:gc",
     ]
 
-    assert coop_context.advance() is context
+    assert coop_context.unfold() is context
     assert _context_structure(native) == (
         ("user", _PROMOTED_SUMMARY),
     )

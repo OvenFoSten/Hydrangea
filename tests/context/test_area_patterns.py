@@ -229,7 +229,7 @@ def test_authoritative_message_area_retires_after_publish() -> None:
     coop_context = CoopContext(context)
     coop_context.register(area)
 
-    advanced_context = coop_context.advance()
+    advanced_context = coop_context.unfold()
 
     assert advanced_context is context
     assert area.life_state is AreaLifeState.retired
@@ -237,7 +237,7 @@ def test_authoritative_message_area_retires_after_publish() -> None:
         ("user", "authoritative source"),
     )
 
-    advanced_context = coop_context.advance()
+    advanced_context = coop_context.unfold()
 
     assert advanced_context is context
     assert area.gc_called
@@ -254,7 +254,7 @@ def test_counting_area_outputs_one_through_ten() -> None:
     coop_context.register(area)
 
     for expected_value in range(1, 11):
-        advanced_context = coop_context.advance()
+        advanced_context = coop_context.unfold()
 
         assert advanced_context is context
         assert _context_structure(native) == tuple(
@@ -264,7 +264,7 @@ def test_counting_area_outputs_one_through_ten() -> None:
 
     assert area.life_state is AreaLifeState.retired
 
-    advanced_context = coop_context.advance()
+    advanced_context = coop_context.unfold()
 
     assert advanced_context is context
     assert area.gc_called
@@ -286,7 +286,7 @@ def test_compact_area_wraps_an_area_and_promotes_summary() -> None:
     coop_context.register(area)
 
     for expected_value in range(1, 5):
-        advanced_context = coop_context.advance()
+        advanced_context = coop_context.unfold()
 
         assert advanced_context is context
         assert _context_structure(native) == tuple(
@@ -297,7 +297,7 @@ def test_compact_area_wraps_an_area_and_promotes_summary() -> None:
     assert area.life_state is AreaLifeState.retain
     assert area.observed_lengths == [1, 2, 3]
 
-    advanced_context = coop_context.advance()
+    advanced_context = coop_context.unfold()
 
     assert advanced_context is context
     assert area.life_state is AreaLifeState.retired
@@ -310,7 +310,7 @@ def test_compact_area_wraps_an_area_and_promotes_summary() -> None:
         ("user", "4"),
     )
 
-    advanced_context = coop_context.advance()
+    advanced_context = coop_context.unfold()
 
     assert advanced_context is context
     assert area.gc_called

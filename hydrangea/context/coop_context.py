@@ -187,7 +187,7 @@ class CoopContext:
         for promote in promotes:
             self._context.emplace_message(promote)
 
-    def advance(self) -> Context:
+    def unfold(self) -> Context:
         if not self._areas:
             return self._context
 
