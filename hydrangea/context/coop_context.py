@@ -49,7 +49,7 @@ class CoopContext:
             ) from error
 
         if any(
-            registered is area and hash(area) == hash(registered)
+            registered is area
             for registered in self._areas
         ):
             raise ValueError(
