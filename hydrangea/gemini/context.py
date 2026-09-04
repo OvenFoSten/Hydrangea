@@ -54,10 +54,10 @@ def gemini_function_call_to_tool_call(
     arguments: dict[str, object] = {}
     if function_call.args is not None:
         arguments = dict(
-        cast(
-            Mapping[str, object],
-            function_call.args,
-        ))
+            cast(
+                Mapping[str, object],
+                function_call.args,
+            ))
 
     return ToolCall(
         call_id=function_call.id,
@@ -80,7 +80,7 @@ class GeminiContext:
     def push_back(self, content: object) -> None:
         if not isinstance(content, types.Content):
             raise TypeError(
-                "GeminiContext requires types.Content, got "+
+                "GeminiContext requires types.Content, got " +
                 f"{type(content).__name__}."
             )
 

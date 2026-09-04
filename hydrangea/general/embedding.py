@@ -2,6 +2,7 @@ from openai import OpenAI
 
 from .config import EmbClientConfig
 
+
 class EmbClient:
     config: EmbClientConfig
     _client: OpenAI

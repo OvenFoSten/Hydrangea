@@ -1,7 +1,6 @@
 from google.genai import types
 
 
-
 class GeminiResponse:
     content: types.Content
     thoughts: list[str] | None

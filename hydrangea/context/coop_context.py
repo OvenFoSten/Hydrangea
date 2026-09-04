@@ -3,32 +3,35 @@ from dataclasses import dataclass
 
 from typing_extensions import assert_never
 
-from .area import ContextAreaImplementation,AreaLifeState,AreaFlowState
+from .area import ContextAreaImplementation, AreaLifeState, AreaFlowState
 from .core import Context, NativeContent
 from ..message import Message
 
-ContextIndex = NewType("ContextIndex",int)
+ContextIndex = NewType("ContextIndex", int)
+
 
 @dataclass(slots=True)
 class _EffectRange:
     earliest: ContextIndex
     latest: ContextIndex
 
-@dataclass(frozen=True,slots=True)
+
+@dataclass(frozen=True, slots=True)
 class _CollectionPlan:
     earliest: ContextIndex
     expected_context_size: int
-    areas: tuple[ContextAreaImplementation,...]
+    areas: tuple[ContextAreaImplementation, ...]
+
 
 class CoopContext:
-    _context:Context
-    garbage:list[NativeContent]
+    _context: Context
+    garbage: list[NativeContent]
 
-    _areas:list[ContextAreaImplementation]
-    _area_mapping:dict[ContextAreaImplementation,_EffectRange]
-    _area_cursor_store:ContextAreaImplementation|None
+    _areas: list[ContextAreaImplementation]
+    _area_mapping: dict[ContextAreaImplementation, _EffectRange]
+    _area_cursor_store: ContextAreaImplementation | None
 
-    def __init__(self,context:Context):
+    def __init__(self, context: Context):
         self._context = context
         self.garbage = list()
 
@@ -37,7 +40,7 @@ class CoopContext:
 
         self._area_cursor_store = None
 
-    def register(self,area:ContextAreaImplementation)->None:
+    def register(self, area: ContextAreaImplementation) -> None:
         try:
             _ = hash(area)
         except TypeError as error:
@@ -54,7 +57,7 @@ class CoopContext:
             )
         self._areas.append(area)
 
-    def _collect(self)->_CollectionPlan|None:
+    def _collect(self) -> _CollectionPlan | None:
         if not self._area_mapping:
             return None
 
@@ -109,8 +112,8 @@ class CoopContext:
 
     def _cursor_after_collection(
         self,
-        areas_to_collect:set[ContextAreaImplementation],
-    )->ContextAreaImplementation|None:
+        areas_to_collect: set[ContextAreaImplementation],
+    ) -> ContextAreaImplementation | None:
         current_area = self._area_cursor_store
         if current_area is None:
             return None
@@ -125,16 +128,16 @@ class CoopContext:
 
         current_index = self._areas.index(current_area)
         area_count = len(self._areas)
-        for offset in range(1,area_count+1):
+        for offset in range(1, area_count + 1):
             candidate = self._areas[
-                (current_index+offset)%area_count
+                (current_index + offset) % area_count
             ]
             if candidate not in areas_to_collect:
                 return candidate
 
         return None
 
-    def _gc(self,plan:_CollectionPlan)->None:
+    def _gc(self, plan: _CollectionPlan) -> None:
         if plan.expected_context_size != len(self._context):
             raise RuntimeError("Unexpected context change between collector and gc.")
 
@@ -154,7 +157,7 @@ class CoopContext:
         )
 
         # 1. Collect Promote
-        promotes:list[Message] = list()
+        promotes: list[Message] = list()
         for area in reversed(plan.areas):
             promotes.extend(area.promote())
         # 2. GC
@@ -184,8 +187,7 @@ class CoopContext:
         for promote in promotes:
             self._context.emplace_message(promote)
 
-
-    def advance(self)->Context:
+    def advance(self) -> Context:
         if not self._areas:
             return self._context
 
@@ -203,15 +205,15 @@ class CoopContext:
 
         # 3. Unfold
         area_count = len(self._areas)
-        visited:int = 0
+        visited: int = 0
         area_cursor_index = self._areas.index(self._area_cursor_store)
-        while(visited<area_count):
+        while (visited < area_count):
             visited += 1
             area_cursor = self._areas[area_cursor_index]
             # Single round till find lifestate = retain
-            area_life_state:AreaLifeState = area_cursor.life_state
-            if(area_life_state != AreaLifeState.retain):
-                area_cursor_index = (area_cursor_index+1)%area_count
+            area_life_state: AreaLifeState = area_cursor.life_state
+            if (area_life_state != AreaLifeState.retain):
+                area_cursor_index = (area_cursor_index + 1) % area_count
                 continue
 
             effect_range = self._area_mapping.get(area_cursor)
@@ -234,13 +236,13 @@ class CoopContext:
             if content:
                 # Calc Effect Range
                 effect_start = ContextIndex(len(self._context))
-                effect_end = ContextIndex(effect_start+len(content)-1)
+                effect_end = ContextIndex(effect_start + len(content) - 1)
                 # Emplace Context
                 for msg in content:
                     self._context.emplace_message(msg)
                 # Remember Effect Range
                 if self._area_mapping.get(area_cursor) is None:
-                    self._area_mapping[area_cursor]=_EffectRange(earliest=effect_start,latest=effect_end)
+                    self._area_mapping[area_cursor] = _EffectRange(earliest=effect_start, latest=effect_end)
                 else:
                     self._area_mapping[area_cursor].latest = effect_end
             # Move Cursor Index
@@ -249,7 +251,7 @@ class CoopContext:
                     self._area_cursor_store = area_cursor
                     return self._context
                 case AreaFlowState.yielded:
-                    area_cursor_index = (area_cursor_index + 1)%area_count
+                    area_cursor_index = (area_cursor_index + 1) % area_count
                 case _:
                     assert_never(area_cursor.flow_state)
 
