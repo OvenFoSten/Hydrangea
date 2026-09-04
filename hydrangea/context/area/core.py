@@ -44,16 +44,16 @@ class ContextAreaImplementation(Protocol):
     def tick(self) -> list[Message]:
         '''
         tick() returns caller-constructed messages that will be appended to Context.
-        Once tick() is called, CoopContext considers this Area to have produced an effect.
+        A non-empty result creates or extends this Area's EffectRange.
         '''
         ...
 
     def promote(self) -> tuple[Message, ...]:
         '''
-        .promote() will be executed when .life_state is "retired".
-        Once .life_state is "retired", Area will be marked by Collector.
-        set .life_state to "retired" doesn't mean it will be collected immedieatly.
-        .promote()'s content will be added into CoopContext once the GC is done.
+        Only Areas with an EffectRange are promoted during normal collection.
+        Retired Areas without an EffectRange are discarded without promotion.
+        Retirement does not guarantee immediate collection.
+        Promoted messages are appended to Context after the tail is detached.
 
         =============================================================
         SWITCHING life_state & flow_state in .promote is **ILLEGAL**.
@@ -64,6 +64,7 @@ class ContextAreaImplementation(Protocol):
     def gc_prologue(self) -> None:
         '''
         .gc_prologue is a notification to Area.
+        Also called when a retired Area without an EffectRange is discarded.
         It means this Area will be collected immedieatly.
         .gc_prologue is designed for important resource collection.
 

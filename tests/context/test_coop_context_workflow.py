@@ -117,7 +117,7 @@ class _AuthoritativeStateArea:
             "A retired authoritative Area must not be observed."
         )
 
-    def advance(self) -> list[Message]:
+    def tick(self) -> list[Message]:
         self._events.append("authority:publish")
         self._life_state = AreaLifeState.retired
         return [
@@ -179,7 +179,7 @@ class _SkillInteractionArea:
 
         self._model_action = action
 
-    def advance(self) -> list[Message]:
+    def tick(self) -> list[Message]:
         if not self._guidance_published:
             self._events.append("skill:guide")
             self._guidance_published = True
@@ -264,7 +264,7 @@ class _AutomaticCompactArea:
 
         self._summary = summary
 
-    def advance(self) -> list[Message]:
+    def tick(self) -> list[Message]:
         if self._phase is _CompactPhase.opening:
             self._events.append("compact:open")
             self._phase = _CompactPhase.working

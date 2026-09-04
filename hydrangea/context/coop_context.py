@@ -137,6 +137,30 @@ class CoopContext:
 
         return None
 
+    def _discard_retired_without_effect(self) -> None:
+        """Guard cleanup: notify and discard, without promotion or Context edits."""
+        areas_to_discard = [
+            area
+            for area in self._areas
+            if area.life_state is AreaLifeState.retired
+            and area not in self._area_mapping
+        ]
+        if not areas_to_discard:
+            return
+
+        discarded = set(areas_to_discard)
+        next_cursor = self._cursor_after_collection(discarded)
+
+        for area in areas_to_discard:
+            area.gc_prologue()
+
+        self._areas[:] = [
+            area
+            for area in self._areas
+            if area not in discarded
+        ]
+        self._area_cursor_store = next_cursor
+
     def _gc(self, plan: _CollectionPlan) -> None:
         if plan.expected_context_size != len(self._context):
             raise RuntimeError("Unexpected context change between collector and gc.")
@@ -188,6 +212,8 @@ class CoopContext:
             self._context.emplace_message(promote)
 
     def unfold(self) -> Context:
+        self._discard_retired_without_effect()
+
         if not self._areas:
             return self._context
 

@@ -75,7 +75,7 @@ class _AuthoritativeMessageArea:
     ) -> None:
         _ = context
 
-    def advance(self) -> list[Message]:
+    def tick(self) -> list[Message]:
         if self._advanced:
             raise RuntimeError(
                 "AuthoritativeMessageArea advanced more than once."
@@ -130,7 +130,7 @@ class _CountingArea:
     ) -> None:
         _ = context
 
-    def advance(self) -> list[Message]:
+    def tick(self) -> list[Message]:
         if self._life_state is AreaLifeState.retired:
             raise RuntimeError(
                 "CountingArea advanced after retirement."
@@ -199,8 +199,8 @@ class _ThresholdCompactArea:
         if observed_length >= self._threshold:
             self._life_state = AreaLifeState.retired
 
-    def advance(self) -> list[Message]:
-        messages = self._inner.advance()
+    def tick(self) -> list[Message]:
+        messages = self._inner.tick()
         self._messages.extend(messages)
         return messages
 

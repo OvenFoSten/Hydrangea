@@ -9,7 +9,7 @@ lang: ja
 
 <p><a href="{% link en/context-areas.md %}">English</a> · <strong>日本語</strong></p>
 
-Context Area は、汎用的な `Message` オブジェクトを `CoopContext` に提供する、呼び出し側で定義されたオブジェクトです。また、スケジューリング状態とライフサイクル状態を公開することで、`CoopContext` が Area を次にいつ advance し、Area の影響下にある Context の末尾をいつ回収できるか判断できるようにします。
+Context Area は、汎用的な `Message` オブジェクトを `CoopContext` に提供する、呼び出し側で定義されたオブジェクトです。また、スケジューリング状態とライフサイクル状態を公開することで、`CoopContext` が次にいつ Area の `tick()` を呼び、Area の影響下にある Context の末尾をいつ回収できるか判断できるようにします。
 
 `ContextAreaImplementation` は、構造的部分型に基づく `Protocol` です。Area は Hydrangea の基底クラスを継承する必要がなく、登録用デコレーターも使用しません。契約を満たすすべてのオブジェクトを登録できます。
 
@@ -56,7 +56,7 @@ class OneShotNoticeArea:
     ) -> None:
         _ = context
 
-    def advance(self) -> list[Message]:
+    def tick(self) -> list[Message]:
         if self._advanced:
             raise RuntimeError(
                 "OneShotNoticeArea advanced more than once."
@@ -97,28 +97,28 @@ context = Context(GatewayType.gemini)
 coop_context = CoopContext(context)
 coop_context.register(area)
 
-model_context = coop_context.advance()
+model_context = coop_context.unfold()
 ```
 
-`advance()` はプロバイダー互換の `Context` を準備して返します。モデル自体を呼び出すことはありません。
+`unfold()` はプロバイダー互換の `Context` を準備して返します。モデル自体を呼び出すことはありません。
 
 ## 契約
 
 | Member | `CoopContext` が参照または呼び出すタイミング | 責務 |
 | --- | --- | --- |
-| `life_state` | 回収判定時および advance 前 | Area が引き続き有効なのか、retire 済みなのかを公開します。 |
-| `flow_state` | `advance()` が正常に完了した直後 | Area が cursor を保持するか、次の Area に譲るかを選択します。 |
-| `observe(context)` | 2 回目以降の advance の直前 | Area の現在の EffectRange に対する、浅い読み取り専用スナップショットを受け取ります。 |
-| `advance()` | retain 状態の Area が cursor に到達したとき | Area を一度進め、呼び出し側で構築した汎用メッセージを返します。 |
-| `promote()` | Area が GC 対象に選ばれたとき | 回収後も保持すべき安定したメッセージを返します。 |
-| `gc_prologue()` | Context の切り離し直前 | Area が削除される前に、外部リソースを解放または記録します。 |
+| `life_state` | 回収判定時および tick 前 | Area が引き続き有効なのか、retire 済みなのかを公開します。 |
+| `flow_state` | `tick()` が正常に完了した直後 | Area が cursor を保持するか、次の Area に譲るかを選択します。 |
+| `observe(context)` | 2 回目以降の tick の直前 | Area の現在の EffectRange に対する、浅い読み取り専用スナップショットを受け取ります。 |
+| `tick()` | retain 状態の Area が cursor に到達したとき | スケジュールされた処理を一度実行し、汎用メッセージを返します。 |
+| `promote()` | EffectRange を持つ Area が GC 対象に選ばれたとき | 回収後も保持すべき安定したメッセージを返します。 |
+| `gc_prologue()` | Area の削除前 | EffectRange のない Area の保護的な清掃も含め、外部リソースを解放または記録します。 |
 
 ### `life_state`
 
 `AreaLifeState` はライフサイクルを制御します。
 
-- `retain` は、Area が引き続き observe および advance される可能性があることを意味します。
-- `retired` は、Area がこれ以上 advance されず、回収可能になったことを意味します。
+- `retain` は、Area の `observe()` および `tick()` が引き続き呼ばれる可能性があることを意味します。
+- `retired` は、Area の `tick()` がこれ以上呼ばれず、回収可能になったことを意味します。
 
 想定される遷移は単調です。
 
@@ -132,7 +132,7 @@ retire は即時破棄を意味しません。別の retain 状態の Area が�
 
 `AreaFlowState` は、ライフサイクルとは独立してスケジューリングを制御します。
 
-- `exclusive` は現在の Area に cursor を保持し、advance 後ただちに Context を返します。
+- `exclusive` は現在の Area に cursor を保持し、tick 後ただちに Context を返します。
 - `yielded` は cursor を進め、同じ unfold パスに他の Area が参加できるようにします。
 
 複数のモデルターンを必要とする Area は、通常 `exclusive` のまま動作します。処理が完了したら `yielded` に切り替え、必要に応じて retire できます。
@@ -143,20 +143,20 @@ retire は即時破棄を意味しません。別の retain 状態の Area が�
 
 1. Area が retain 状態である。
 2. Area が現在の cursor に到達している。
-3. 以前の空でない `advance()` によって、すでに EffectRange が作成されている。
+3. 以前の空でない `tick()` によって、すでに EffectRange が作成されている。
 
 渡される `Sequence[NativeContent]` は浅いスナップショットです。この参照を通して sequence の長さを変更することはできませんが、プロバイダー固有の各要素自体は変更可能である場合があります。Area は sequence とその内容の両方を読み取り専用として扱う必要があります。
 
-`observe()` は Area を `retired` に変更できます。その場合、`CoopContext` は現在のパスにおけるその Area の `advance()` をスキップします。
+`observe()` は Area を `retired` に変更できます。その場合、`CoopContext` は現在のパスにおけるその Area の `tick()` をスキップします。
 
-### `advance()`
+### `tick()`
 
-`advance()` は Area を一度進め、プロバイダー固有のコンテンツではなく `list[Message]` を返します。Hydrangea は有効なプロバイダー実装を通して各メッセージを変換し、`Context.emplace_message()` で追加します。
+`tick()` はスケジュールされた処理を一度実行し、プロバイダー固有のコンテンツではなく `list[Message]` を返します。メッセージを返さず、状態も変更しないことが許されます。Hydrangea は有効なプロバイダー実装を通して各メッセージを変換し、`Context.emplace_message()` で追加します。
 
 - 空でない結果は、Area の EffectRange を作成または拡張します。
 - 空の結果は、EffectRange を作成も更新もしません。
-- 最初の空でない advance によって `earliest` が確定します。
-- その後の空でない advance は、新しく追加された最後のメッセージまで `latest` を移動します。
+- 最初の空でない tick によって `earliest` が確定します。
+- その後の空でない tick は、新しく追加された最後のメッセージまで `latest` を移動します。
 
 EffectRange は Area の位置的な影響範囲を表し、区間内のすべての要素に対する排他的な所有権を表すものではありません。モデルのレスポンスや他の Area の出力が、`earliest` と `latest` の間に含まれる場合があります。
 
@@ -171,11 +171,11 @@ def promote(self) -> tuple[Message, ...]:
     return ()
 ```
 
-すべての昇格結果は、いずれかの `gc_prologue()` が呼び出される前に収集されます。`promote()` 内で `life_state` または `flow_state` を変更することは契約外であり、進行中の回収を取り消すことはできません。
+通常の EffectRange 回収では、その回収計画に含まれるすべての昇格結果を、同じ計画の `gc_prologue()` が呼ばれる前に収集します。`promote()` 内で `life_state` または `flow_state` を変更することは契約外であり、進行中の回収を取り消すことはできません。
 
 ### `gc_prologue()`
 
-`gc_prologue()` は、Context の末尾が切り離され、Area が削除される直前の最終通知です。外部リソースの解放や最後の状態記録に使用します。永続化する Context の内容は、すでに `promote()` から返されている必要があります。
+`gc_prologue()` は、Area が削除される直前の最終通知です。通常の回収では Context の末尾も切り離され、保持する内容は事前に `promote()` から返されている必要があります。EffectRange のない Area の保護的な清掃では、この通知だけを送り、昇格や Context の切り離しは行いません。
 
 このコールバックから Area の状態を変更しても、現在の回収計画には影響しません。
 
@@ -184,12 +184,12 @@ def promote(self) -> tuple[Message, ...]:
 ```mermaid
 flowchart TD
     accTitle: Context Area のライフサイクル
-    accDescr: CoopContext は retain 状態の Area を繰り返し observe および advance し、Area が retire した後は promote と回収が可能になるまで待機します。
+    accDescr: CoopContext は retain 状態の Area の observe と tick を繰り返し呼びます。EffectRange を持つ retired Area は末尾の回収を待ち、持たない Area は清掃通知だけを受けて削除されます。
 
     Register["Area を登録"] --> Retain["Area: retain"]
     Retain --> Observe["EffectRange があれば<br/>observe()"]
-    Observe --> AreaAdvance["retain のままなら<br/>Area.advance()"]
-    AreaAdvance --> Messages["list[Message] を返す"]
+    Observe --> AreaTick["retain のままなら<br/>Area.tick()"]
+    AreaTick --> Messages["list[Message] を返す"]
     Messages --> Flow{"Area flow_state"}
 
     Flow -- exclusive --> Keep["cursor を保持"]
@@ -198,13 +198,17 @@ flowchart TD
     Advance --> Retain
 
     Retain -->|"life_state = retired"| Retired["Area: retired"]
-    Retired --> Wait["末尾が回収可能になるまで待機"]
+    Retired -->|"EffectRange あり"| Wait["末尾が回収可能になるまで待機"]
     Wait --> Promote["promote()"]
     Promote --> Prologue["gc_prologue()"]
     Prologue --> Removed["Area を削除"]
+    Retired -->|"EffectRange なし"| Discard["保護的な清掃:<br/>gc_prologue() のみ"]
+    Discard --> Removed
 ```
 
-回収は、その後の `CoopContext.advance()` 呼び出しの先頭で行われます。これにより、Context の使用中に変更するのではなく、モデル呼び出し間にセーフポイントが形成されます。
+回収は、その後の `CoopContext.unfold()` 呼び出しの先頭で行われます。これにより、Context の使用中に変更するのではなく、モデル呼び出し間にセーフポイントが形成されます。
+
+一度もメッセージを追加せずに retire した Area は、次の `unfold()` の先頭で破棄されます。この保護処理は配置順に `gc_prologue()` を呼び、cursor を調整して Area を削除します。通常の末尾回収が阻止されていても実行されますが、`promote()` や Context の変更は行いません。EffectRange がなくても retain 状態の Area は登録されたまま残ります。`promote()` を最初の情報追加経路として使うことはサポートしません。
 
 ## EffectRange と回収
 
@@ -218,7 +222,7 @@ Collector は、EffectRange が Context の末尾方向へ最も遠く到達し�
 
 - 同じ Area インスタンスを複数回登録しないでください。
 - `retain -> retired` を不可逆な遷移として扱ってください。
-- スケジューリング状態とライフサイクル状態は、GC コールバックではなく `observe()` または `advance()` から変更してください。
+- スケジューリング状態とライフサイクル状態は、GC コールバックではなく `observe()` または `tick()` から変更してください。
 - 汎用的な `Message` を返してください。Area 内でプロバイダー固有の Context 要素を構築しないでください。
 - `observe()` から受け取った `NativeContent` オブジェクトを変更しないでください。
 - retire が即時回収を意味すると仮定しないでください。

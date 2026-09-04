@@ -53,7 +53,7 @@ class _FakeArea:
         _ = context
         self.observed_count += 1
 
-    def advance(self) -> list[Message]:
+    def tick(self) -> list[Message]:
         if not self._advance_content:
             return []
 
