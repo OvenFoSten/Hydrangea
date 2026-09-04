@@ -25,7 +25,7 @@ class _LLMImplementation(Protocol):
         context: ContextImplementation,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
-        temperature:float | None
+        temperature: float | None
     ) -> NativeContent:
         ...
 
@@ -37,7 +37,7 @@ class LLM:
         self,
         gateway_type: GatewayType,
         config: LLMConfig,
-        instruction:SystemInstruction,
+        instruction: SystemInstruction,
     ) -> None:
         match gateway_type:
             case GatewayType.gemini:
@@ -60,7 +60,7 @@ class LLM:
         context: Context,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
-        temperature:float | None = None
+        temperature: float | None = None
     ) -> NativeContent:
         return self._native.invoke(
             context=context.native,
@@ -72,6 +72,7 @@ class LLM:
     @property
     def gateway_type(self) -> GatewayType:
         return self._native.gateway_type
+
 
 __all__ = [
     "LLM",
