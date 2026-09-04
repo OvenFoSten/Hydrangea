@@ -5,9 +5,12 @@ from .core import (
     ContextImplementation
 )
 
+from .area import AreaBuiltin
+
 __all__ = [
     "Context",
     "NativeContent",
     "NativeContext",
-    "ContextImplementation"
+    "ContextImplementation",
+    "AreaBuiltin"
 ]
