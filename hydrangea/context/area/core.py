@@ -2,6 +2,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 from enum import Enum, auto
+from abc import ABC, abstractmethod
 
 from ..core import NativeContent
 from ...message import Message
@@ -71,3 +72,34 @@ class ContextAreaImplementation(Protocol):
         ================================================================
         '''
         ...
+
+
+class Area(ABC):
+    _life_state: LifeState
+    _flow_state: FlowState
+
+    def __init__(self, *, flow_state: FlowState) -> None:
+        self._life_state = LifeState.retain
+        self._flow_state = flow_state
+
+    @property
+    def life_state(self) -> LifeState:
+        return self._life_state
+
+    @property
+    def flow_state(self) -> FlowState:
+        return self._flow_state
+
+    def observe(self, context: Sequence[NativeContent]) -> None:
+        pass
+
+    @abstractmethod
+    def tick(self) -> list[Message]:
+        """Process one scheduled tick; returning no messages is valid."""
+        raise NotImplementedError
+
+    def promote(self) -> tuple[Message, ...]:
+        return ()
+
+    def gc_prologue(self) -> None:
+        pass
