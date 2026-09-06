@@ -16,6 +16,7 @@ class LifeState(Enum):
 class InvokeTiming(Enum):
     immediate = auto()
     deferrable = auto()
+    null = auto()
 
 
 class ContextAreaImplementation(Protocol):
