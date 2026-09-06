@@ -93,7 +93,7 @@ class Area(ABC):
         self._life_state = LifeState.retired
 
     def observe(self, context: Sequence[NativeContent]) -> None:
-        self._observe_snapshot = context
+        self._observe_snapshot = tuple(context)
 
     @abstractmethod
     def tick(self) -> list[Message]:
