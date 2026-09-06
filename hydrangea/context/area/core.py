@@ -13,22 +13,28 @@ class LifeState(Enum):
     retired = auto()  # Ready for GC
 
 
-class FlowState(Enum):
-    exclusive = auto()
-    yielded = auto()
+class InvokeTiming(Enum):
+    immediate = auto()
+    deferrable = auto()
 
 
 class ContextAreaImplementation(Protocol):
 
     _life_state: LifeState
-    _flow_state: FlowState
+    _invoke_timing: InvokeTiming
+
+    _observe_snapshot: Sequence[NativeContent]
 
     @property
     def life_state(self) -> LifeState:
         ...
 
     @property
-    def flow_state(self) -> FlowState:
+    def invoke_timing(self) -> InvokeTiming:
+        """
+        immediate  => Expect LLM.invoke() immediately after .tick()
+        deferrable => Expect at least one LLM.invoke() after .tick()
+        """
         ...
 
     def observe(
@@ -36,41 +42,30 @@ class ContextAreaImplementation(Protocol):
         context: Sequence[NativeContent],
     ) -> None:
         '''
-        Observe the Context range currently owned by this Area.
-        The supplied Sequence is a shallow, read-only snapshot.
+        CoopContext would use this method to update self._observe_snapshot.
         '''
         ...
 
     def tick(self) -> list[Message]:
         '''
-        tick() returns caller-constructed messages that will be appended to Context.
-        A non-empty result creates or extends this Area's EffectRange.
+        CoopContext would use this method to get a list of Message.
+        .tick() means Area itself should process some details about self._life_state.
         '''
         ...
 
     def promote(self) -> tuple[Message, ...]:
         '''
-        Only Areas with an EffectRange are promoted during normal collection.
-        Retired Areas without an EffectRange are discarded without promotion.
-        Retirement does not guarantee immediate collection.
-        Promoted messages are appended to Context after the tail is detached.
-
-        =============================================================
-        SWITCHING life_state & flow_state in .promote is **ILLEGAL**.
-        =============================================================
+        CoopContext would use this method when GC this area.
+        .promote() means promote some message to CoopContext._context.
+        Breifly, return what you wanna keep beyond GC.
         '''
         ...
 
     def gc_prologue(self) -> None:
         '''
-        .gc_prologue is a notification to Area.
-        Also called when a retired Area without an EffectRange is discarded.
+        CoopContext would use this method to notify area when GC.
         It means this Area will be collected immedieatly.
         .gc_prologue is designed for important resource collection.
-
-        ================================================================
-        SWITCHING life_state & flow_state in .gc_prologue is **USELESS**
-        ================================================================
         '''
         ...
 
