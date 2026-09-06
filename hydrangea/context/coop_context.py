@@ -20,7 +20,7 @@ class _AreaChain:
         return len(self._areas)
 
     def __contains__(self, x: _Area) -> bool:
-        return x in self._areas
+        return any(existing is x for existing in self._areas)
 
     def is_empty(self) -> bool:
         return len(self._areas) == 0
@@ -63,7 +63,7 @@ class CoopContext:
     _area_chains: list[_AreaChain]
     _area_ownership_mapping: dict[_Area, _OwnershipRange]
     _area_lifescale_mapping: dict[_Area, _LifeScale]
-    _area_cursor_store: _AreaChain | None
+    _cursor_store: _AreaChain | None
 
     def __init__(self, context: Context):
         self._context = context
@@ -73,10 +73,13 @@ class CoopContext:
         self._area_ownership_mapping = dict()
         self._area_lifescale_mapping = dict()
 
-        self._area_cursor_store = None
+        self._cursor_store = None
 
-    
+    @property
+    def cursor(self) -> _AreaChain | None:
+        return self._cursor_store
 
+    #TODO: Consider preempts:Area
     def add(self, area: _Area, preempts: _AreaChain | None = None):
         try:
             _ = hash(area)
@@ -92,8 +95,12 @@ class CoopContext:
                 )
 
         if preempts:
+            if preempts.is_empty():
+                raise ValueError(
+                    "Preempts is Empty."
+                    )
             found = next((x for x in self._area_chains if x is preempts), None)
-            if not found:
+            if found is None:
                 raise ValueError(
                     "Preempts no found."
                 )
@@ -175,7 +182,7 @@ class CoopContext:
         self,
         areas_to_collect: set[ContextAreaImplementation],
     ) -> ContextAreaImplementation | None:
-        current_area = self._area_cursor_store
+        current_area = self._cursor_store
         if current_area is None:
             return None
 
@@ -220,7 +227,7 @@ class CoopContext:
             for area in self._areas
             if area not in discarded
         ]
-        self._area_cursor_store = next_cursor
+        self._cursor_store = next_cursor
 
     def _gc(self, plan: _CollectionPlan) -> None:
         if plan.expected_context_size != len(self._context):
@@ -266,7 +273,7 @@ class CoopContext:
             for area in self._areas
             if area not in areas_to_collect
         ]
-        self._area_cursor_store = next_cursor
+        self._cursor_store = next_cursor
 
         # 3. emplace promotes
         for promote in promotes:
@@ -284,16 +291,16 @@ class CoopContext:
             self._gc(plan)
 
         if not self._areas:
-            self._area_cursor_store = None
+            self._cursor_store = None
             return self._context
 
-        if self._area_cursor_store is None:
-            self._area_cursor_store = self._areas[0]
+        if self._cursor_store is None:
+            self._cursor_store = self._areas[0]
 
         # 3. Unfold
         area_count = len(self._areas)
         visited: int = 0
-        area_cursor_index = self._areas.index(self._area_cursor_store)
+        area_cursor_index = self._areas.index(self._cursor_store)
         while (visited < area_count):
             visited += 1
             area_cursor = self._areas[area_cursor_index]
@@ -335,7 +342,7 @@ class CoopContext:
             # Move Cursor Index
             match area_cursor.flow_state:
                 case AreaFlowState.exclusive:
-                    self._area_cursor_store = area_cursor
+                    self._cursor_store = area_cursor
                     return self._context
                 case AreaFlowState.yielded:
                     area_cursor_index = (area_cursor_index + 1) % area_count
@@ -343,6 +350,6 @@ class CoopContext:
                     assert_never(area_cursor.flow_state)
 
         # 4. Store Cursor
-        self._area_cursor_store = self._areas[area_cursor_index]
+        self._cursor_store = self._areas[area_cursor_index]
         # 5. Return Context
         return self._context
