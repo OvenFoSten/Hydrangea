@@ -94,7 +94,7 @@ class CoopContext:
                     "Found Duplicated Area."
                 )
 
-        if preempts:
+        if preempts is not None:
             if preempts.is_empty():
                 raise ValueError(
                     "Preempts is Empty."
