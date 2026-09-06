@@ -1,11 +1,11 @@
 from .core import LifeState as AreaLifeState
-from .core import FlowState as AreaFlowState
+from .core import InvokeTiming as AreaInvokeTiming
 from .core import ContextAreaImplementation
 from . import builtin as AreaBuiltin
 
 __all__ = [
     "AreaLifeState",
-    "AreaFlowState",
+    "AreaInvokeTiming",
     "ContextAreaImplementation",
     "AreaBuiltin"
 ]
