@@ -72,26 +72,31 @@ class ContextAreaImplementation(Protocol):
 
 class Area(ABC):
     _life_state: LifeState
-    _flow_state: FlowState
+    _invoke_timing:InvokeTiming
+    _observe_snapshot: Sequence[NativeContent]
 
-    def __init__(self, *, flow_state: FlowState) -> None:
+
+    def __init__(self, *, invoke_timing:InvokeTiming) -> None:
         self._life_state = LifeState.retain
-        self._flow_state = flow_state
+        self._invoke_timing = invoke_timing
+        self._observe_snapshot = tuple()
 
     @property
     def life_state(self) -> LifeState:
         return self._life_state
 
     @property
-    def flow_state(self) -> FlowState:
-        return self._flow_state
+    def invoke_timing(self)-> InvokeTiming:
+        return self._invoke_timing
+
+    def _retire(self) ->None:
+        self._life_state = LifeState.retired
 
     def observe(self, context: Sequence[NativeContent]) -> None:
-        pass
+        self._observe_snapshot = context
 
     @abstractmethod
     def tick(self) -> list[Message]:
-        """Process one scheduled tick; returning no messages is valid."""
         raise NotImplementedError
 
     def promote(self) -> tuple[Message, ...]:
