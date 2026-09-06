@@ -1,18 +1,51 @@
 from typing import NewType
 from dataclasses import dataclass
-
 from typing_extensions import assert_never
 
-from .area import ContextAreaImplementation, AreaLifeState, AreaFlowState
+from .area import AreaLifeState, AreaInvokeTiming
+from .area import ContextAreaImplementation as _Area
 from .core import Context, NativeContent
 from ..message import Message
 
 ContextIndex = NewType("ContextIndex", int)
 
 
+class _AreaChain:
+    _areas: list[_Area]
+
+    def __init__(self, first: _Area, *rest: _Area) -> None:
+        self._areas = [first, *rest]
+
+    def __len__(self) -> int:
+        return len(self._areas)
+
+    def __contains__(self, x: _Area) -> bool:
+        return x in self._areas
+
+    def is_empty(self) -> bool:
+        return len(self._areas) == 0
+
+    def top(self) -> _Area:
+        return self._areas[-1]
+
+    def pop_top(self) -> None:
+        if len(self._areas) == 0:
+            return
+        _ = self._areas.pop()
+
+    def push(self, area: _Area) -> None:
+        self._areas.append(area)
+
+
 @dataclass(slots=True)
-class _EffectRange:
-    earliest: ContextIndex
+class _OwnershipRange:
+    start: ContextIndex
+    latest: ContextIndex
+
+
+@dataclass(slots=True)
+class _LifeScale:
+    start: ContextIndex
     latest: ContextIndex
 
 
@@ -20,25 +53,53 @@ class _EffectRange:
 class _CollectionPlan:
     earliest: ContextIndex
     expected_context_size: int
-    areas: tuple[ContextAreaImplementation, ...]
+    areas: tuple[_Area, ...]
 
 
 class CoopContext:
     _context: Context
     garbage: list[NativeContent]
 
-    _areas: list[ContextAreaImplementation]
-    _area_mapping: dict[ContextAreaImplementation, _EffectRange]
-    _area_cursor_store: ContextAreaImplementation | None
+    _area_chains: list[_AreaChain]
+    _area_ownership_mapping: dict[_Area, _OwnershipRange]
+    _area_lifescale_mapping: dict[_Area, _LifeScale]
+    _area_cursor_store: _AreaChain | None
 
     def __init__(self, context: Context):
         self._context = context
         self.garbage = list()
 
-        self._areas = list()
-        self._area_mapping = dict()
+        self._area_chains = list()
+        self._area_ownership_mapping = dict()
+        self._area_lifescale_mapping = dict()
 
         self._area_cursor_store = None
+
+    
+
+    def add(self, area: _Area, preempts: _AreaChain | None = None):
+        try:
+            _ = hash(area)
+        except TypeError as error:
+            raise TypeError(
+                "Area must be hashable."
+            ) from error
+
+        for chain in self._area_chains:
+            if area in chain:
+                raise ValueError(
+                    "Found Duplicated Area."
+                )
+
+        if preempts:
+            found = next((x for x in self._area_chains if x is preempts), None)
+            if not found:
+                raise ValueError(
+                    "Preempts no found."
+                )
+            found.push(area)
+        else:
+            self._area_chains.append(_AreaChain(area))
 
     def register(self, area: ContextAreaImplementation) -> None:
         try:
