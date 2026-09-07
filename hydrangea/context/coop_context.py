@@ -134,33 +134,6 @@ class CoopContext:
             areas=tuple(component),
         )
 
-    def _cursor_after_collection(
-        self,
-        areas_to_collect: set[ContextAreaImplementation],
-    ) -> ContextAreaImplementation | None:
-        current_area = self._cursor_store
-        if current_area is None:
-            return None
-
-        if current_area not in self._areas:
-            raise RuntimeError(
-                "Current Area is missing from CoopContext."
-            )
-
-        if current_area not in areas_to_collect:
-            return current_area
-
-        current_index = self._areas.index(current_area)
-        area_count = len(self._areas)
-        for offset in range(1, area_count + 1):
-            candidate = self._areas[
-                (current_index + offset) % area_count
-            ]
-            if candidate not in areas_to_collect:
-                return candidate
-
-        return None
-
     def _gc(self, plan: _CollectionPlan) -> None:
         if plan.expected_context_size != len(self._context):
             raise RuntimeError("Unexpected context change between collector and gc.")
@@ -210,6 +183,21 @@ class CoopContext:
         # 3. emplace promotes
         for promote in promotes:
             self._context.emplace_message(promote)
+
+    def _cursor_repair(self) -> None:
+        expected_index: int = 0
+        if self._cursor_store is None:
+            expected_index = 0
+        else:
+            expected_index = self._area_chains.index(self._cursor_store)
+
+        visited: int = 0
+        chain_size: int = len(self._area_chains)
+        while self._area_chains[expected_index].top().life_state is not AreaLifeState.retain and visited < chain_size:
+            visited += 1
+            expected_index += 1
+
+        self._cursor_store = self._area_chains[expected_index]
 
     def unfold(self) -> Context:
         self._discard_retired_without_effect()
