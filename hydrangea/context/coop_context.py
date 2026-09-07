@@ -26,6 +26,10 @@ class _AreaChain:
         return len(self._areas) == 0
 
     def top(self) -> _Area:
+        if self.is_empty():
+            raise RuntimeError(
+                "Chain is Empty."
+            )
         return self._areas[-1]
 
     def pop_top(self) -> None:
