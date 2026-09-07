@@ -197,7 +197,10 @@ class CoopContext:
             visited += 1
             expected_index += 1
 
-        self._cursor_store = self._area_chains[expected_index]
+        if self._area_chains[expected_index].top().life_state is not AreaLifeState.retain:
+            self._cursor_store = None
+        else :
+            self._cursor_store = self._area_chains[expected_index]
 
     def unfold(self) -> Context:
         self._discard_retired_without_effect()
