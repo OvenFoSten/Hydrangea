@@ -79,52 +79,6 @@ class CoopContext:
     def cursor(self) -> _AreaChain | None:
         return self._cursor_store
 
-    #TODO: Consider preempts:Area
-    def add(self, area: _Area, preempts: _AreaChain | None = None):
-        try:
-            _ = hash(area)
-        except TypeError as error:
-            raise TypeError(
-                "Area must be hashable."
-            ) from error
-
-        for chain in self._area_chains:
-            if area in chain:
-                raise ValueError(
-                    "Found Duplicated Area."
-                )
-
-        if preempts is not None:
-            if preempts.is_empty():
-                raise ValueError(
-                    "Preempts is Empty."
-                    )
-            found = next((x for x in self._area_chains if x is preempts), None)
-            if found is None:
-                raise ValueError(
-                    "Preempts no found."
-                )
-            found.push(area)
-        else:
-            self._area_chains.append(_AreaChain(area))
-
-    def register(self, area: ContextAreaImplementation) -> None:
-        try:
-            _ = hash(area)
-        except TypeError as error:
-            raise TypeError(
-                "Context Area must be hashable."
-            ) from error
-
-        if any(
-            registered is area
-            for registered in self._areas
-        ):
-            raise ValueError(
-                "Context Area instance is already registered."
-            )
-        self._areas.append(area)
-
     def _collect(self) -> _CollectionPlan | None:
         if not self._area_mapping:
             return None
