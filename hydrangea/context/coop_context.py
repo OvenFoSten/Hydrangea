@@ -192,6 +192,7 @@ class CoopContext:
             self._context.emplace_message(promote)
 
     def _cursor_repair(self) -> None:
+        # cursor = None when Empty.
         chain_size: int = len(self._area_chains)
         if chain_size == 0:
             self._cursor_store = None
@@ -204,12 +205,20 @@ class CoopContext:
             expected_index = self._area_chains.index(self._cursor_store)
 
         visited: int = 0
+        runnable:_Area|None = None
+        while visited < chain_size:
+            chain = self._area_chains[expected_index]
+            if not chain.is_empty():
+                for area in chain:
+                    if area.life_state is AreaLifeState.retain:
+                        runnable = area
+            if runnable is not None:
+                break
 
-        while self._area_chains[expected_index].top().life_state is not AreaLifeState.retain and visited < chain_size:
             visited += 1
             expected_index = (expected_index + 1) % chain_size
 
-        if self._area_chains[expected_index].top().life_state is not AreaLifeState.retain:
+        if runnable is None:
             self._cursor_store = None
         else:
             self._cursor_store = self._area_chains[expected_index]
