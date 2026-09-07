@@ -19,6 +19,9 @@ class _AreaChain:
     def __len__(self) -> int:
         return len(self._areas)
 
+    def __getitem__(self, index: int) -> _Area:
+        return self._areas[-1 - index]
+
     def __contains__(self, x: _Area) -> bool:
         return any(existing is x for existing in self._areas)
 
