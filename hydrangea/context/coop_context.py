@@ -185,6 +185,11 @@ class CoopContext:
             self._context.emplace_message(promote)
 
     def _cursor_repair(self) -> None:
+        chain_size: int = len(self._area_chains)
+        if chain_size == 0:
+            self._cursor_store = None
+            return
+        
         expected_index: int = 0
         if self._cursor_store is None:
             expected_index = 0
@@ -192,14 +197,14 @@ class CoopContext:
             expected_index = self._area_chains.index(self._cursor_store)
 
         visited: int = 0
-        chain_size: int = len(self._area_chains)
+
         while self._area_chains[expected_index].top().life_state is not AreaLifeState.retain and visited < chain_size:
             visited += 1
-            expected_index += 1
+            expected_index = (expected_index + 1) % chain_size
 
         if self._area_chains[expected_index].top().life_state is not AreaLifeState.retain:
             self._cursor_store = None
-        else :
+        else:
             self._cursor_store = self._area_chains[expected_index]
 
     def unfold(self) -> Context:
