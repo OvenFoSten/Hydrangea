@@ -192,12 +192,15 @@ class CoopContext:
             self._context.emplace_message(promote)
 
     def _cursor_repair(self) -> None:
+        """
+        ._cursor_repair found next foldable Chain.
+        """
         # cursor = None when Empty.
         chain_size: int = len(self._area_chains)
         if chain_size == 0:
             self._cursor_store = None
             return
-        
+
         expected_index: int = 0
         if self._cursor_store is None:
             expected_index = 0
@@ -205,7 +208,7 @@ class CoopContext:
             expected_index = self._area_chains.index(self._cursor_store)
 
         visited: int = 0
-        runnable:_Area|None = None
+        runnable: _Area | None = None
         while visited < chain_size:
             chain = self._area_chains[expected_index]
             if not chain.is_empty():
@@ -223,75 +226,40 @@ class CoopContext:
         else:
             self._cursor_store = self._area_chains[expected_index]
 
-    def unfold(self) -> Context:
-        self._discard_retired_without_effect()
 
-        if not self._areas:
-            return self._context
-
-        # 1. Collect & GC
-        plan = self._collect()
-        if plan is not None:
-            self._gc(plan)
-
-        if not self._areas:
-            self._cursor_store = None
-            return self._context
-
+    def _cursor_forward(self)->list[_Area]:
         if self._cursor_store is None:
-            self._cursor_store = self._areas[0]
+            raise RuntimeError("Unexpected Empty cursor when forwarding.")
 
-        # 3. Unfold
-        area_count = len(self._areas)
-        visited: int = 0
-        area_cursor_index = self._areas.index(self._cursor_store)
-        while (visited < area_count):
+        ret:list[_Area] = list()
+        cursor_index = self._area_chains.index(self._cursor_store)
+        chain_count:int = len(self._area_chains)
+        visited:int = 0
+        while visited < chain_count:
+            chain = self._area_chains[cursor_index]
+            cursor_index = (cursor_index + 1) % chain_count
             visited += 1
-            area_cursor = self._areas[area_cursor_index]
-            # Single round till find lifestate = retain
-            area_life_state: AreaLifeState = area_cursor.life_state
-            if (area_life_state != AreaLifeState.retain):
-                area_cursor_index = (area_cursor_index + 1) % area_count
-                continue
+            for area in chain:
+                ret.append(area)
+                match area.invoke_timing:
+                    case AreaInvokeTiming.immediate:
+                        return ret
+                    case AreaInvokeTiming.deferrable:
+                        continue
+                    case _ :
+                        raise RuntimeError(f"Unexpected declared InvokeTiming.")
+        return ret
 
-            effect_range = self._area_mapping.get(area_cursor)
-            if effect_range is not None:
-                context_slice = self._context[
-                    int(effect_range.earliest):
-                    int(effect_range.latest) + 1
-                ]
-                area_cursor.observe(context_slice)
 
-                area_life_state = area_cursor.life_state
-                if area_life_state is AreaLifeState.retired:
-                    area_cursor_index = (
-                        area_cursor_index + 1
-                    ) % area_count
-                    continue
-
-            # Render Content
-            content = area_cursor.tick()
-            if content:
-                # Calc Effect Range
-                effect_start = ContextIndex(len(self._context))
-                effect_end = ContextIndex(effect_start + len(content) - 1)
-                # Emplace Context
-                for msg in content:
-                    self._context.emplace_message(msg)
-                # Remember Effect Range
-                if self._area_mapping.get(area_cursor) is None:
-                    self._area_mapping[area_cursor] = _EffectRange(earliest=effect_start, latest=effect_end)
-                else:
-                    self._area_mapping[area_cursor].latest = effect_end
-            # Move Cursor Index
-            match area_cursor.flow_state:
-                case AreaFlowState.exclusive:
-                    self._cursor_store = area_cursor
-                    return self._context
-                case AreaFlowState.yielded:
-                    area_cursor_index = (area_cursor_index + 1) % area_count
-                case _:
-                    assert_never(area_cursor.flow_state)
+    def unfold(self) -> Context:
+        # 0. Before GC, repair cursor.
+        self._cursor_repair()
+        # 1. Collect & GC
+        # 2. Return context when chains is empty.
+        chain_size = len(self._area_chains)
+        if chain_size == 0:
+            return self._context
+        # 3. Fast forward & Unfold
 
         # 4. Store Cursor
         self._cursor_store = self._areas[area_cursor_index]
