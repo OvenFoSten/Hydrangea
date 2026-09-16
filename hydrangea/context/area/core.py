@@ -47,7 +47,7 @@ class ContextAreaImplementation(Protocol):
         '''
         ...
 
-    def tick(self) -> list[Message]:
+    def tick(self) -> list[Message]|None:
         '''
         CoopContext would use this method to get a list of Message.
         .tick() means Area itself should process some details about self._life_state.
@@ -97,7 +97,7 @@ class Area(ABC):
         self._observe_snapshot = tuple(context)
 
     @abstractmethod
-    def tick(self) -> list[Message]:
+    def tick(self) -> list[Message]|None:
         raise NotImplementedError
 
     def promote(self) -> tuple[Message, ...]:
