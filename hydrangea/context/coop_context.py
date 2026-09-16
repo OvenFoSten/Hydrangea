@@ -227,7 +227,7 @@ class CoopContext:
             self._cursor_store = self._area_chains[expected_index]
 
 
-    def _cursor_forward(self)->list[_Area]:
+    def _cursor_forward(self)->tuple[list[_Area],_AreaChain]:
         if self._cursor_store is None:
             raise RuntimeError("Unexpected Empty cursor when forwarding.")
 
@@ -235,20 +235,21 @@ class CoopContext:
         cursor_index = self._area_chains.index(self._cursor_store)
         chain_count:int = len(self._area_chains)
         visited:int = 0
+        current_chain:_AreaChain = self._cursor_store
         while visited < chain_count:
-            chain = self._area_chains[cursor_index]
+            current_chain = self._area_chains[cursor_index]
             cursor_index = (cursor_index + 1) % chain_count
             visited += 1
-            for area in chain:
+            for area in current_chain:
                 ret.append(area)
                 match area.invoke_timing:
                     case AreaInvokeTiming.immediate:
-                        return ret
+                        return (ret,current_chain)
                     case AreaInvokeTiming.deferrable:
                         continue
                     case _ :
                         raise RuntimeError(f"Unexpected declared InvokeTiming.")
-        return ret
+        return (ret,current_chain)
 
 
     def unfold(self) -> Context:
