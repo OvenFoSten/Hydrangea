@@ -27,10 +27,10 @@ class _AreaChain:
         return len(self._areas) == 0
 
     def __iter__(self) -> Iterator[_Area]:
-        return iter(self._areas)
+        return reversed(self._areas)
 
-    def __delitem__(self, index: int):
-        del self._areas[index]
+    def __delitem__(self, index: int) -> None:
+        del self._areas[-1 - index]
 
     def top(self) -> _Area:
         if self.is_empty():
@@ -96,6 +96,15 @@ class CoopContext:
         collected_areas: list[_CollectCandidate] = []
         expected_size = len(self._context)
         earliest = expected_size
+        observe_barrier: int | None = max(
+            (
+                ob_range.start
+                for area, ob_range in self._area_observe_range_mapping.items()
+                if area.life_state is AreaLifeState.retain
+                and area not in self._area_effect_range_mapping
+            ),
+            default=None
+        )
         # 1. Collect observe-only areas.
         for area, ob_range in self._area_observe_range_mapping.items():
             if area.life_state is not AreaLifeState.retired:
@@ -128,14 +137,18 @@ class CoopContext:
                     collecting.clear()
 
                     component_left = ef_range.start
+                else:
+                    component_left = min(
+                        component_left,
+                        ef_range.start,
+                    )
+
+                if observe_barrier is not None and component_left <= observe_barrier:
+                    break
 
                 if area.life_state is AreaLifeState.retain:
                     break
 
-                component_left = min(
-                    component_left,
-                    ef_range.start,
-                )
                 collecting.append(
                     _CollectCandidate(
                         area=area,
@@ -147,56 +160,54 @@ class CoopContext:
                 earliest = component_left
 
         # 3. Return.
-            if not collected_areas:
-                return None
+        if not collected_areas:
+            return None
 
-            if earliest == expected_size:
-                return _CollectPlan(
-                    None,
-                    expected_size,
-                    tuple(collected_areas),
-                )
-
-            return _CollectPlan(
-                earliest,
-                expected_size,
-                tuple(collected_areas),
-            )
+        return _CollectPlan(
+            earliest=None if earliest == expected_size else earliest,
+            expected_context_size=expected_size,
+            candidates=tuple(collected_areas),
+        )
 
     def _gc(self, plan: _CollectPlan) -> None:
         if plan.expected_context_size != len(self._context):
             raise RuntimeError("Unexpected context change after collected.")
 
-        candidates = plan.candidates
-        promotes: list[Message] = list()
+        candidates: tuple[_CollectCandidate, ...] = plan.candidates
+        # 1. Sweep Mappings
+        for candidate in candidates:
+            area = candidate.area
+            _ = self._area_effect_range_mapping.pop(area, None)
+            _ = self._area_observe_range_mapping.pop(area, None)
+        # 2. GC Notify & Promote & GC
         ordered = sorted(
             candidates,
             key=lambda candidate: candidate.last_touched,
         )
-        # 1. GC Notify & Promote
+        promotes: list[Message] = list()
         for candidate in ordered:
             area = candidate.area
             promotes.extend(area.promote())
             area.gc_prologue()
-        # 2. Sweep Context & Garbage
+        # 3. Sweep Context & Garbage
         if plan.earliest is not None:
-            garbage_length = plan.expected_context_size - 1 - plan.earliest
+            garbage_length = plan.expected_context_size - plan.earliest
             self.garbage.extend(self._context.detach_tail(garbage_length))
-        # 3. Promote
+        # 4. Promote
         for promote in promotes:
             self._context.emplace_message(promote)
-        # 4. Sweep Areas
+        # 5. Sweep Areas
         sweep_set: set[_Area] = set()
         for candidate in candidates:
             sweep_set.add(candidate.area)
         empty_chain_index: list[int] = list()
         for chain_index, chain in enumerate(self._area_chains):
-            for area_index, area in enumerate(chain):
+            for area_index, area in reversed(list(enumerate(chain))):
                 if area in sweep_set:
                     del chain[area_index]
             if chain.is_empty():
                 empty_chain_index.append(chain_index)
-        for e_i in empty_chain_index:
+        for e_i in reversed(empty_chain_index):
             del self._area_chains[e_i]
 
     def _cursor_repair(self) -> None:
@@ -259,6 +270,7 @@ class CoopContext:
                         continue
                     case _:
                         raise RuntimeError(f"Unexpected declared InvokeTiming.")
+        current_chain = self._area_chains[(cursor_index + 1) % chain_count]
         return (ret, current_chain)
 
     def unfold(self) -> Context:
@@ -270,7 +282,7 @@ class CoopContext:
             self._gc(collection_plan)
         # 2. Return context when chains is empty.
         chain_size = len(self._area_chains)
-        if chain_size == 0:
+        if chain_size == 0 and self._cursor_store is None:
             return self._context
         # 3. Update ObserveRange.latest
         """
