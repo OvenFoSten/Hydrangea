@@ -1,8 +1,10 @@
 from __future__ import annotations
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Protocol,final
 from enum import Enum, auto
 from abc import ABC, abstractmethod
+
+from typing_extensions import override
 
 from ..core import NativeContent
 from ...message import Message
@@ -81,6 +83,16 @@ class Area(ABC):
         self._life_state = LifeState.retain
         self._invoke_timing = invoke_timing
         self._observe_snapshot = tuple()
+
+    @final
+    @override
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+    @final
+    @override
+    def __hash__(self) -> int:
+        return object.__hash__(self)
 
     @property
     def life_state(self) -> LifeState:
