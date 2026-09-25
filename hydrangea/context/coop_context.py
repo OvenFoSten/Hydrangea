@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from collections.abc import Iterator
-
+from typing import NewType
 
 from .area import AreaLifeState, AreaInvokeTiming
 from .area import ContextAreaImplementation as _Area
@@ -48,6 +48,21 @@ class _AreaChain:
         self._areas.append(area)
 
 
+class AreaLane:
+    areas: list[_Area]
+
+    def __init__(self, first: _Area, *rest: _Area) -> None:
+        self.areas = [first, *rest]
+
+
+AreaLayout = NewType("AreaLayout", list[AreaLane | _Area])
+
+
+@dataclass(slots=True, frozen=True)
+class AreaLaneHandle:
+    _chain_ref: _AreaChain
+
+
 @dataclass(slots=True)
 class _EffectRange:
     start: int
@@ -91,6 +106,62 @@ class CoopContext:
         self._area_observe_range_mapping = dict()
 
         self._cursor_store = None
+
+    def _validate_area_batch(self, areas: list[_Area]) -> None:
+        existing = tuple(
+            area
+            for chain in self._area_chains
+            for area in chain
+        )
+        accepted: list[_Area] = list()
+        for area in areas:
+            try:
+                _ = hash(area)
+            except TypeError as exc:
+                raise TypeError("Area must be hashable.") from exc
+            if any(area is item for item in existing):
+                raise ValueError("Area instance is already registered.")
+            if any(area is item for item in accepted):
+                raise ValueError("Area instance is duplicated in this operation.")
+            accepted.append(area)
+
+    def _validate_area(self, area: _Area) -> None:
+        try:
+            _ = hash(area)
+        except TypeError as exc:
+            raise TypeError("Area must be hashable.") from exc
+
+        existing = tuple(
+            area
+            for chain in self._area_chains
+            for area in chain
+        )
+        if any(area is item for item in existing):
+            raise ValueError("Area instance is already registered.")
+
+    def overlay(self, area: _Area, handle: AreaLaneHandle):
+        self._validate_area(area)
+        # It's better to access the protected member instead of design something complex to bypass Pyright.
+        chain_ref = handle._chain_ref # pyright: ignore[reportPrivateUsage]
+        if chain_ref not in self._area_chains:
+            raise ValueError("Hanging Handle.")
+        chain_ref.push(area)
+
+    def append_lane(self, lane: AreaLane):
+        self._validate_area_batch(lane.areas)
+        areas_chain = lane.areas[::-1]
+        self._area_chains.append(
+            _AreaChain(*areas_chain)
+        )
+
+    def compose(self,layout:AreaLayout):
+        for item in layout:
+            if isinstance(item,AreaLane):
+                self.append_lane(item)
+            # We decide not to make protocol runtime checkable.
+            # Meanwhile Area(ABC) is optional so we do not wanna couple it here.
+            else:
+                self.append_lane(AreaLane(item))
 
     def _collect(self) -> _CollectPlan | None:
         collected_areas: list[_CollectCandidate] = []
