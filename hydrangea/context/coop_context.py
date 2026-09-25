@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from collections.abc import Iterator
-from typing import NewType
+from typing import Final, NewType
 
 from .area import AreaLifeState, AreaInvokeTiming
 from .area import ContextAreaImplementation as _Area
@@ -79,6 +79,7 @@ class _ObserveRange:
 class _CollectCandidate:
     area: _Area
     last_touched: int
+_INVALID_LAST_TOUCHED:Final[int] = -2048
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,13 +156,28 @@ class CoopContext:
         )
 
     def compose(self,layout:AreaLayout):
+        #We decide not to make protocol runtime checkable.
+        # Meanwhile Area(ABC) is optional so we do not wanna couple it here.
+        areas = [
+            area
+            for item in layout
+            for area in (
+            item.areas if isinstance(item, AreaLane) else [item]
+            )
+        ]
+        self._validate_area_batch(areas)
+        
         for item in layout:
             if isinstance(item,AreaLane):
                 self.append_lane(item)
-            # We decide not to make protocol runtime checkable.
-            # Meanwhile Area(ABC) is optional so we do not wanna couple it here.
             else:
                 self.append_lane(AreaLane(item))
+
+    def fetch_handle(self,target:_Area)->AreaLaneHandle|None:
+        for chain in self._area_chains:
+            if target in chain:
+                return AreaLaneHandle(chain)
+        return None
 
     def _collect(self) -> _CollectPlan | None:
         collected_areas: list[_CollectCandidate] = []
@@ -176,7 +192,17 @@ class CoopContext:
             ),
             default=None
         )
-        # 1. Collect observe-only areas.
+        # 1. Collect non-observe, non-effect, retired Area.
+        for chain in self._area_chains:
+            for area in chain:
+                if area.life_state is not AreaLifeState.retired:
+                    continue
+                if self._area_effect_range_mapping.get(area) is not None:
+                    continue
+                if self._area_observe_range_mapping.get(area) is not None:
+                    continue
+                collected_areas.append(_CollectCandidate(area,_INVALID_LAST_TOUCHED))
+        # 2. Collect observe-only areas.
         for area, ob_range in self._area_observe_range_mapping.items():
             if area.life_state is not AreaLifeState.retired:
                 continue
@@ -190,7 +216,7 @@ class CoopContext:
                 )
             )
 
-        # 2. Find longest collectable tail.
+        # 3. Find longest collectable tail.
         ordered = sorted(
             self._area_effect_range_mapping.items(),
             key=lambda item: item[1].latest,
@@ -230,7 +256,7 @@ class CoopContext:
                 collected_areas.extend(collecting)
                 earliest = component_left
 
-        # 3. Return.
+        # 4. Return.
         if not collected_areas:
             return None
 
@@ -251,8 +277,14 @@ class CoopContext:
             _ = self._area_effect_range_mapping.pop(area, None)
             _ = self._area_observe_range_mapping.pop(area, None)
         # 2. GC Notify & Promote & GC
+        untouched_candidates = [c for c in candidates if c.last_touched == _INVALID_LAST_TOUCHED]
+        for candidate in untouched_candidates:
+            area = candidate.area
+            area.gc_prologue()
+        
+        touched_candidates = [c for c in candidates if c.last_touched != _INVALID_LAST_TOUCHED]
         ordered = sorted(
-            candidates,
+            touched_candidates,
             key=lambda candidate: candidate.last_touched,
         )
         promotes: list[Message] = list()
@@ -341,7 +373,7 @@ class CoopContext:
                         continue
                     case _:
                         raise RuntimeError(f"Unexpected declared InvokeTiming.")
-        current_chain = self._area_chains[(cursor_index + 1) % chain_count]
+        current_chain = self._area_chains[cursor_index]
         return (ret, current_chain)
 
     def unfold(self) -> Context:
@@ -379,19 +411,20 @@ class CoopContext:
             observe_range = self._area_observe_range_mapping.get(area)
 
             content = area.tick()
-            if content is None:
-                continue
-            if len(content) == 0:
-                raise ValueError("Area return empty content is illegal.")
-
+            # Default value for observe_only area.
             content_start: int = len(self._context)
-            content_end = len(self._context) + len(content) - 1
-            if effect_range is None:
-                self._area_effect_range_mapping[area] = _EffectRange(
-                    content_start, content_end
-                )
-            else:
-                self._area_effect_range_mapping[area].latest = content_end
+            content_end = content_start
+
+            if content is not None:    
+                if len(content) == 0:
+                    raise ValueError("Area return empty content is illegal.")
+                content_end = len(self._context) + len(content) - 1
+                if effect_range is None:
+                    self._area_effect_range_mapping[area] = _EffectRange(
+                        content_start, content_end
+                    )
+                else:
+                    self._area_effect_range_mapping[area].latest = content_end
 
             # We need to update the ObserveRange as a handel.
             # Batch update at 3.
@@ -399,10 +432,10 @@ class CoopContext:
                 self._area_observe_range_mapping[area] = _ObserveRange(
                     content_start, content_start
                 )
-            else:
-                pass
-            for message in content:
-                self._context.emplace_message(message)
+
+            if content is not None:
+                for message in content:
+                    self._context.emplace_message(message)
         # 5. Store Cursor
         self._cursor_store = next_cursor
 
