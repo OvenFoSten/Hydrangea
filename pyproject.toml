@@ -25,4 +25,16 @@ hydrangea = ["py.typed"]
 [project.optional-dependencies]
 test = [
     "pytest>=8,<9",
+    "hypothesis>=6,<7",
+    "pytest-cov>=5,<8",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["hydrangea"]
+
+[tool.coverage.report]
+include = ["*/hydrangea/context/coop_context.py"]
+precision = 2
+show_missing = true
+fail_under = 95
