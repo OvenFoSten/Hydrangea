@@ -1,443 +1,133 @@
-from collections.abc import Sequence
-from enum import Enum, auto
+"""External decisions add Areas between unfolds; the runtime does not branch."""
 
-from google.genai import types
+from hydrangea.context.area.core import InvokeTiming, LifeState
+from hydrangea.context.coop_context import AreaLane
 
-from hydrangea.context import Context, NativeContent
-from hydrangea.context.area import AreaFlowState, AreaLifeState
-from hydrangea.context.coop_context import CoopContext
-from hydrangea.gateway import GatewayType
-from hydrangea.gemini.context import GeminiContext
-from hydrangea.message import Message, Role
+from .helpers import Harness, TickStep, assert_same_objects, layout, texts
 
 
-_SESSION_OPEN = "<working-context>codex-like task</working-context>"
-_AUTHORITATIVE_STATE = (
-    "<authoritative-state>repository is writable; inspect before editing"
-    "</authoritative-state>"
-)
-_SKILL_GUIDANCE = (
-    "<skill-guidance>follow the repository-review workflow</skill-guidance>"
-)
-_MODEL_ACTION = "ACTION: inspect repository status"
-_ACTION_RESULT = (
-    "<action-result>repository inspection completed</action-result>"
-)
-_COMPACT_REQUEST = (
-    "<compact-request>summarize completed work</compact-request>"
-)
-_MODEL_SUMMARY = "Repository inspected; no blocking issue found."
-_COMPACT_SEAL = "<compact-complete/>"
-_PROMOTED_SUMMARY = (
-    "<working-summary>Repository inspected; no blocking issue found."
-    "</working-summary>"
-)
-
-
-def _content_text(content: NativeContent) -> str:
-    assert isinstance(content, types.Content)
-
-    parts = content.parts
-    assert parts is not None
-    assert len(parts) == 1
-
-    text = parts[0].text
-    assert text is not None
-    return text
-
-
-def _context_structure(
-    native: GeminiContext,
-) -> tuple[tuple[str, str], ...]:
-    structure: list[tuple[str, str]] = []
-    for content in native.contents:
-        role = content.role
-        assert role is not None
-        structure.append(
-            (role, _content_text(content))
-        )
-
-    return tuple(structure)
-
-
-def _snapshot_text(
-    context: Sequence[NativeContent],
-) -> tuple[str, ...]:
-    return tuple(
-        _content_text(content)
-        for content in context
+def test_information_then_conditional_overlay_then_compaction(h: Harness) -> None:
+    h.reply("prefix")
+    prefix = h.context[:]
+    a = h.area(
+        "information",
+        timing=InvokeTiming.immediate,
+        steps=[TickStep(("need-info",)), TickStep(), TickStep(("final-request",), retire=True)],
+        promotions=("final-summary",),
     )
+    h.coop.append_lane(AreaLane(a))
+    handle = h.coop.fetch_handle(a)
+    h.unfold()
+    assert texts(h.context[:]) == ("prefix", "need-info")
+    assert (h.coop._area_effect_range_mapping[a].start, h.coop._area_effect_range_mapping[a].latest) == (1, 1)
+    assert h.coop._cursor_store is handle._chain_ref
+
+    h.reply("not-ready")
+    h.unfold()
+    assert layout(h.coop) == ((a,),)  # External decision: no B exists yet.
+    assert texts(a.snapshots[-1]) == ("need-info", "not-ready")
+    assert texts(h.context[:]) == ("prefix", "need-info", "not-ready")
+
+    h.reply("ready")
+    b = h.area("work", timing=InvokeTiming.immediate, steps=[TickStep(("work",), retire=True)], promotions=("work-summary",))
+    h.coop.overlay(b, handle)
+    assert layout(h.coop) == ((b, a),)
+    h.unfold()
+    assert (a.tick_count, b.tick_count) == (2, 1)
+    assert b.life_state is LifeState.retired and b.gc_count == 0
+    assert texts(a.snapshots[-1]) == ("need-info", "not-ready", "ready")
+    assert (h.coop._area_effect_range_mapping[b].start, h.coop._area_effect_range_mapping[b].latest) == (4, 4)
+    h.reply("work-result")
+    first_garbage = h.context[4:]
+
+    h.unfold()
+    assert layout(h.coop) == ((a,),)
+    assert h.coop.fetch_handle(b) is None
+    assert h.coop._cursor_store is handle._chain_ref
+    assert (b.promote_count, b.gc_count) == (1, 1)
+    assert texts(a.snapshots[-1]) == ("need-info", "not-ready", "ready", "work-summary")
+    assert texts(h.context[:]) == ("prefix", "need-info", "not-ready", "ready", "work-summary", "final-request")
+    assert (h.coop._area_effect_range_mapping[a].start, h.coop._area_effect_range_mapping[a].latest) == (1, 5)
+    assert a.life_state is LifeState.retired and a.gc_count == 0
+    assert_same_objects(h.coop.garbage, first_garbage)
+
+    h.reply("final-model")
+    second_garbage = h.context[1:]
+    h.unfold()
+    assert_same_objects(h.context[:1], prefix)
+    assert texts(h.context[:]) == ("prefix", "final-summary")
+    assert_same_objects(h.coop.garbage, (*first_garbage, *second_garbage))
+    assert not h.coop._area_effect_range_mapping and not h.coop._area_observe_range_mapping
+    assert not layout(h.coop) and h.coop._cursor_store is None
+    assert (a.promote_count, a.gc_count, b.promote_count, b.gc_count) == (1, 1, 1, 1)
+    final = h.context[:]
+    h.unfold()
+    assert_same_objects(h.context[:], final)
 
 
-def _append_model_response(
-    context: Context,
-    content: str,
-) -> None:
-    context.push_back(
-        types.Content(
-            role="model",
-            parts=[types.Part.from_text(text=content)],
-        )
-    )
+def test_layered_overlay_observe_barrier_cancellation_and_runtime_reuse(h: Harness) -> None:
+    h.reply("prefix")
+    prefix = h.context[:]
+    base = h.area("base", timing=InvokeTiming.immediate, promotions=("base-summary",))
+    h.coop.append_lane(AreaLane(base))
+    h.unfold()
+    assert base not in h.coop._area_effect_range_mapping
+    assert h.coop._area_observe_range_mapping[base].start == 1
+    h.reply("anchor")
 
+    observer = h.area("observer", timing=InvokeTiming.immediate, steps=[TickStep(), TickStep(retire=True)], promotions=("observer-summary",))
+    handle = h.coop.fetch_handle(base)
+    h.coop.overlay(observer, handle)
+    h.unfold()
+    assert h.coop._area_observe_range_mapping[observer].start == 2
+    assert texts(base.snapshots[-1]) == ("anchor",)
 
-def _new_context() -> tuple[Context, GeminiContext]:
-    native = GeminiContext()
-    context = Context(
-        gateway_type=GatewayType.gemini,
-        native=native,
-    )
-    return context, native
+    cancelled = h.area("cancelled", promotions=("must-not-publish",))
+    h.coop.append_lane(AreaLane(cancelled))
+    cancelled.retire()
+    worker = h.area("worker", timing=InvokeTiming.immediate, steps=[TickStep(("work",), retire=True)], promotions=("worker-summary",))
+    h.coop.overlay(worker, handle)
+    h.unfold()
+    assert cancelled.tick_count == 0 and cancelled.gc_count == 1 and cancelled.promote_count == 0
+    assert layout(h.coop) == ((worker, observer, base),)
+    assert observer.snapshots[-1] == ()
+    h.reply("work-reply")
+    removed = h.context[2:]
 
+    # Observer's start == worker's effect start: worker cannot yet be collected.
+    assert h.coop._collect() is None
+    h.unfold()
+    assert worker.gc_count == 0 and worker.resource_open
+    assert texts(observer.snapshots[-1]) == ("work", "work-reply")
+    assert observer.life_state is LifeState.retired and observer.gc_count == 0
 
-class _AuthoritativeStateArea:
-    _life_state: AreaLifeState
-    _flow_state: AreaFlowState
-    _events: list[str]
+    h.unfold()
+    assert layout(h.coop) == ((base,),)
+    assert (worker.gc_count, observer.gc_count, base.gc_count) == (1, 1, 0)
+    assert texts(h.context[:]) == ("prefix", "anchor", "worker-summary", "observer-summary")
+    assert texts(base.snapshots[-1]) == ("anchor", "worker-summary", "observer-summary")
+    assert_same_objects(h.coop.garbage, removed)
+    assert h.coop._cursor_store is handle._chain_ref
 
-    def __init__(self, events: list[str]) -> None:
-        self._life_state = AreaLifeState.retain
-        self._flow_state = AreaFlowState.yielded
-        self._events = events
+    base.retire()
+    before = h.context[:]
+    h.unfold()
+    assert_same_objects(h.context[:len(before)], before)
+    assert texts(h.context[:]) == ("prefix", "anchor", "worker-summary", "observer-summary", "base-summary")
+    assert not layout(h.coop) and base.gc_count == 1
 
-    @property
-    def life_state(self) -> AreaLifeState:
-        return self._life_state
-
-    @property
-    def flow_state(self) -> AreaFlowState:
-        return self._flow_state
-
-    def observe(
-        self,
-        context: Sequence[NativeContent],
-    ) -> None:
-        _ = context
-        raise RuntimeError(
-            "A retired authoritative Area must not be observed."
-        )
-
-    def tick(self) -> list[Message]:
-        self._events.append("authority:publish")
-        self._life_state = AreaLifeState.retired
-        return [
-            Message(
-                role=Role.user,
-                content=_AUTHORITATIVE_STATE,
-            )
-        ]
-
-    def promote(self) -> tuple[Message, ...]:
-        self._events.append("authority:promote")
-        return ()
-
-    def gc_prologue(self) -> None:
-        self._events.append("authority:gc")
-
-
-class _SkillInteractionArea:
-    _life_state: AreaLifeState
-    _flow_state: AreaFlowState
-    _events: list[str]
-    _guidance_published: bool
-    _model_action: str | None
-    observed_snapshots: list[tuple[str, ...]]
-
-    def __init__(self, events: list[str]) -> None:
-        self._life_state = AreaLifeState.retain
-        self._flow_state = AreaFlowState.exclusive
-        self._events = events
-        self._guidance_published = False
-        self._model_action = None
-        self.observed_snapshots = []
-
-    @property
-    def life_state(self) -> AreaLifeState:
-        return self._life_state
-
-    @property
-    def flow_state(self) -> AreaFlowState:
-        return self._flow_state
-
-    def observe(
-        self,
-        context: Sequence[NativeContent],
-    ) -> None:
-        self.observed_snapshots.append(
-            _snapshot_text(context)
-        )
-
-    def accept_model_action(self, action: str) -> None:
-        if not self._guidance_published:
-            raise RuntimeError(
-                "Skill guidance must be published before an action."
-            )
-        if self._model_action is not None:
-            raise RuntimeError(
-                "SkillInteractionArea received more than one action."
-            )
-
-        self._model_action = action
-
-    def tick(self) -> list[Message]:
-        if not self._guidance_published:
-            self._events.append("skill:guide")
-            self._guidance_published = True
-            return [
-                Message(
-                    role=Role.user,
-                    content=_SKILL_GUIDANCE,
-                )
-            ]
-
-        if self._model_action is None:
-            raise RuntimeError(
-                "SkillInteractionArea advanced before model action."
-            )
-
-        self._events.append("skill:complete-action")
-        self._life_state = AreaLifeState.retired
-        self._flow_state = AreaFlowState.yielded
-        return [
-            Message(
-                role=Role.user,
-                content=_ACTION_RESULT,
-            )
-        ]
-
-    def promote(self) -> tuple[Message, ...]:
-        self._events.append("skill:promote")
-        return ()
-
-    def gc_prologue(self) -> None:
-        self._events.append("skill:gc")
-
-
-class _CompactPhase(Enum):
-    opening = auto()
-    working = auto()
-    awaiting_summary = auto()
-    sealed = auto()
-
-
-class _AutomaticCompactArea:
-    _life_state: AreaLifeState
-    _flow_state: AreaFlowState
-    _events: list[str]
-    _phase: _CompactPhase
-    _summary: str | None
-    observed_snapshots: list[tuple[str, ...]]
-
-    def __init__(self, events: list[str]) -> None:
-        self._life_state = AreaLifeState.retain
-        self._flow_state = AreaFlowState.yielded
-        self._events = events
-        self._phase = _CompactPhase.opening
-        self._summary = None
-        self.observed_snapshots = []
-
-    @property
-    def life_state(self) -> AreaLifeState:
-        return self._life_state
-
-    @property
-    def flow_state(self) -> AreaFlowState:
-        return self._flow_state
-
-    def observe(
-        self,
-        context: Sequence[NativeContent],
-    ) -> None:
-        self.observed_snapshots.append(
-            _snapshot_text(context)
-        )
-
-    def accept_summary(self, summary: str) -> None:
-        if self._phase is not _CompactPhase.awaiting_summary:
-            raise RuntimeError(
-                "Compact summary arrived outside its request phase."
-            )
-        if self._summary is not None:
-            raise RuntimeError(
-                "AutomaticCompactArea received more than one summary."
-            )
-
-        self._summary = summary
-
-    def tick(self) -> list[Message]:
-        if self._phase is _CompactPhase.opening:
-            self._events.append("compact:open")
-            self._phase = _CompactPhase.working
-            return [
-                Message(
-                    role=Role.user,
-                    content=_SESSION_OPEN,
-                )
-            ]
-
-        if self._phase is _CompactPhase.working:
-            self._events.append("compact:request-summary")
-            self._phase = _CompactPhase.awaiting_summary
-            self._flow_state = AreaFlowState.exclusive
-            return [
-                Message(
-                    role=Role.user,
-                    content=_COMPACT_REQUEST,
-                )
-            ]
-
-        if self._phase is _CompactPhase.awaiting_summary:
-            if self._summary is None:
-                raise RuntimeError(
-                    "AutomaticCompactArea advanced before summary."
-                )
-
-            self._events.append("compact:seal")
-            self._phase = _CompactPhase.sealed
-            self._life_state = AreaLifeState.retired
-            self._flow_state = AreaFlowState.yielded
-            return [
-                Message(
-                    role=Role.user,
-                    content=_COMPACT_SEAL,
-                )
-            ]
-
-        raise RuntimeError(
-            "AutomaticCompactArea advanced after sealing."
-        )
-
-    def promote(self) -> tuple[Message, ...]:
-        if self._summary is None:
-            raise RuntimeError(
-                "AutomaticCompactArea promoted without a summary."
-            )
-
-        self._events.append("compact:promote")
-        return (
-            Message(
-                role=Role.user,
-                content=(
-                    "<working-summary>"
-                    f"{self._summary}"
-                    "</working-summary>"
-                ),
-            ),
-        )
-
-    def gc_prologue(self) -> None:
-        self._events.append("compact:gc")
-
-
-def test_authority_skill_and_compaction_workflow() -> None:
-    context, native = _new_context()
-    events: list[str] = []
-    compact = _AutomaticCompactArea(events)
-    authority = _AuthoritativeStateArea(events)
-    skill = _SkillInteractionArea(events)
-
-    coop_context = CoopContext(context)
-    for area in (compact, authority, skill):
-        coop_context.register(area)
-
-    first_model_context = coop_context.unfold()
-
-    assert first_model_context is context
-    assert authority.life_state is AreaLifeState.retired
-    assert skill.flow_state is AreaFlowState.exclusive
-    assert _context_structure(native) == (
-        ("user", _SESSION_OPEN),
-        ("user", _AUTHORITATIVE_STATE),
-        ("user", _SKILL_GUIDANCE),
-    )
-
-    _append_model_response(context, _MODEL_ACTION)
-    skill.accept_model_action(_MODEL_ACTION)
-
-    second_model_context = coop_context.unfold()
-
-    assert second_model_context is context
-    assert skill.life_state is AreaLifeState.retired
-    assert compact.flow_state is AreaFlowState.exclusive
-    assert skill.observed_snapshots == [
-        (_SKILL_GUIDANCE,)
-    ]
-    assert compact.observed_snapshots == [
-        (_SESSION_OPEN,)
-    ]
-    assert _context_structure(native) == (
-        ("user", _SESSION_OPEN),
-        ("user", _AUTHORITATIVE_STATE),
-        ("user", _SKILL_GUIDANCE),
-        ("model", _MODEL_ACTION),
-        ("user", _ACTION_RESULT),
-        ("user", _COMPACT_REQUEST),
-    )
-
-    _append_model_response(context, _MODEL_SUMMARY)
-    compact.accept_summary(_MODEL_SUMMARY)
-
-    sealed_context = coop_context.unfold()
-
-    assert sealed_context is context
-    assert compact.life_state is AreaLifeState.retired
-    assert compact.observed_snapshots == [
-        (_SESSION_OPEN,),
-        (
-            _SESSION_OPEN,
-            _AUTHORITATIVE_STATE,
-            _SKILL_GUIDANCE,
-            _MODEL_ACTION,
-            _ACTION_RESULT,
-            _COMPACT_REQUEST,
-        ),
-    ]
-    assert _context_structure(native) == (
-        ("user", _SESSION_OPEN),
-        ("user", _AUTHORITATIVE_STATE),
-        ("user", _SKILL_GUIDANCE),
-        ("model", _MODEL_ACTION),
-        ("user", _ACTION_RESULT),
-        ("user", _COMPACT_REQUEST),
-        ("model", _MODEL_SUMMARY),
-        ("user", _COMPACT_SEAL),
-    )
-
-    compacted_context = coop_context.unfold()
-
-    assert compacted_context is context
-    assert _context_structure(native) == (
-        ("user", _PROMOTED_SUMMARY),
-    )
-    assert [
-        _content_text(content)
-        for content in coop_context.garbage
-    ] == [
-        _SESSION_OPEN,
-        _AUTHORITATIVE_STATE,
-        _SKILL_GUIDANCE,
-        _MODEL_ACTION,
-        _ACTION_RESULT,
-        _COMPACT_REQUEST,
-        _MODEL_SUMMARY,
-        _COMPACT_SEAL,
-    ]
-    assert events == [
-        "compact:open",
-        "authority:publish",
-        "skill:guide",
-        "skill:complete-action",
-        "compact:request-summary",
-        "compact:seal",
-        "authority:promote",
-        "skill:promote",
-        "compact:promote",
-        "authority:gc",
-        "skill:gc",
-        "compact:gc",
-    ]
-
-    assert coop_context.unfold() is context
-    assert _context_structure(native) == (
-        ("user", _PROMOTED_SUMMARY),
-    )
+    fresh = h.area("fresh", timing=InvokeTiming.immediate, steps=[TickStep(("fresh-work",), retire=True)], promotions=("fresh-summary",))
+    h.coop.append_lane(AreaLane(fresh))
+    keep = h.context[:]
+    h.unfold()
+    h.reply("fresh-reply")
+    new_removed = h.context[len(keep):]
+    h.unfold()
+    assert_same_objects(h.context[:len(keep)], keep)
+    assert_same_objects(h.context[:1], prefix)
+    assert texts(h.context[len(keep):]) == ("fresh-summary",)
+    assert_same_objects(h.coop.garbage, (*removed, *new_removed))
+    assert not layout(h.coop) and h.coop._cursor_store is None
+    for area in (base, observer, cancelled, worker, fresh):
+        assert area.gc_count == 1 and not area.resource_open
+        assert h.coop.fetch_handle(area) is None

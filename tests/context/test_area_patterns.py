@@ -1,326 +1,129 @@
-# pyright: reportPrivateUsage=false
-
-from collections.abc import Sequence
-
-from google.genai import types
-
-from hydrangea.context import Context, NativeContent
-from hydrangea.context.area import AreaFlowState, AreaLifeState
-from hydrangea.context.coop_context import CoopContext
-from hydrangea.gateway import GatewayType
-from hydrangea.gemini.context import GeminiContext
-from hydrangea.message import Message, Role
-
-
-def _content_text(content: NativeContent) -> str:
-    assert isinstance(content, types.Content)
-
-    parts = content.parts
-    assert parts is not None
-    assert len(parts) == 1
-
-    text = parts[0].text
-    assert text is not None
-    return text
-
-
-def _context_structure(
-    native: GeminiContext,
-) -> tuple[tuple[str, str], ...]:
-    structure: list[tuple[str, str]] = []
-    for content in native.contents:
-        role = content.role
-        assert role is not None
-        structure.append(
-            (role, _content_text(content))
-        )
-
-    return tuple(structure)
-
-
-def _new_context() -> tuple[Context, GeminiContext]:
-    native = GeminiContext()
-    context = Context(
-        gateway_type=GatewayType.gemini,
-        native=native,
-    )
-    return context, native
-
-
-class _AuthoritativeMessageArea:
-    _life_state: AreaLifeState
-    _flow_state: AreaFlowState
-    _content: str
-    _advanced: bool
-    gc_called: bool
-
-    def __init__(self, content: str) -> None:
-        self._life_state = AreaLifeState.retain
-        self._flow_state = AreaFlowState.exclusive
-        self._content = content
-        self._advanced = False
-        self.gc_called = False
-
-    @property
-    def life_state(self) -> AreaLifeState:
-        return self._life_state
-
-    @property
-    def flow_state(self) -> AreaFlowState:
-        return self._flow_state
-
-    def observe(
-        self,
-        context: Sequence[NativeContent],
-    ) -> None:
-        _ = context
-
-    def tick(self) -> list[Message]:
-        if self._advanced:
-            raise RuntimeError(
-                "AuthoritativeMessageArea advanced more than once."
-            )
-
-        self._advanced = True
-        self._life_state = AreaLifeState.retired
-        return [
-            Message(
-                role=Role.user,
-                content=self._content,
-            )
-        ]
-
-    def promote(self) -> tuple[Message, ...]:
-        return ()
-
-    def gc_prologue(self) -> None:
-        self.gc_called = True
-
-
-class _CountingArea:
-    _life_state: AreaLifeState
-    _flow_state: AreaFlowState
-    _next_value: int
-    _last_value: int
-    gc_called: bool
-
-    def __init__(self, last_value: int) -> None:
-        if last_value < 1:
-            raise ValueError(
-                f"last_value must be positive, got {last_value}."
-            )
-
-        self._life_state = AreaLifeState.retain
-        self._flow_state = AreaFlowState.exclusive
-        self._next_value = 1
-        self._last_value = last_value
-        self.gc_called = False
-
-    @property
-    def life_state(self) -> AreaLifeState:
-        return self._life_state
-
-    @property
-    def flow_state(self) -> AreaFlowState:
-        return self._flow_state
-
-    def observe(
-        self,
-        context: Sequence[NativeContent],
-    ) -> None:
-        _ = context
-
-    def tick(self) -> list[Message]:
-        if self._life_state is AreaLifeState.retired:
-            raise RuntimeError(
-                "CountingArea advanced after retirement."
-            )
-
-        value = self._next_value
-        self._next_value += 1
-        if value == self._last_value:
-            self._life_state = AreaLifeState.retired
-
-        return [
-            Message(
-                role=Role.user,
-                content=str(value),
-            )
-        ]
-
-    def promote(self) -> tuple[Message, ...]:
-        return ()
-
-    def gc_prologue(self) -> None:
-        self.gc_called = True
-
-
-class _ThresholdCompactArea:
-    _life_state: AreaLifeState
-    _flow_state: AreaFlowState
-    _inner: _CountingArea
-    _threshold: int
-    _messages: list[Message]
-    observed_lengths: list[int]
-    gc_called: bool
-
-    def __init__(
-        self,
-        inner: _CountingArea,
-        threshold: int,
-    ) -> None:
-        if threshold < 1:
-            raise ValueError(
-                f"threshold must be positive, got {threshold}."
-            )
-
-        self._life_state = AreaLifeState.retain
-        self._flow_state = AreaFlowState.exclusive
-        self._inner = inner
-        self._threshold = threshold
-        self._messages = []
-        self.observed_lengths = []
-        self.gc_called = False
-
-    @property
-    def life_state(self) -> AreaLifeState:
-        return self._life_state
-
-    @property
-    def flow_state(self) -> AreaFlowState:
-        return self._flow_state
-
-    def observe(
-        self,
-        context: Sequence[NativeContent],
-    ) -> None:
-        observed_length = len(context)
-        self.observed_lengths.append(observed_length)
-        if observed_length >= self._threshold:
-            self._life_state = AreaLifeState.retired
-
-    def tick(self) -> list[Message]:
-        messages = self._inner.tick()
-        self._messages.extend(messages)
-        return messages
-
-    def promote(self) -> tuple[Message, ...]:
-        compacted_content = ", ".join(
-            message.content
-            for message in self._messages
-        )
-        return (
-            Message(
-                role=Role.user,
-                content=f"compacted: {compacted_content}",
-            ),
-        )
-
-    def gc_prologue(self) -> None:
-        self.gc_called = True
-        self._inner.gc_prologue()
-
-
-def test_authoritative_message_area_retires_after_publish() -> None:
-    context, native = _new_context()
-    area = _AuthoritativeMessageArea(
-        "authoritative source",
-    )
-    coop_context = CoopContext(context)
-    coop_context.register(area)
-
-    advanced_context = coop_context.unfold()
-
-    assert advanced_context is context
-    assert area.life_state is AreaLifeState.retired
-    assert _context_structure(native) == (
-        ("user", "authoritative source"),
-    )
-
-    advanced_context = coop_context.unfold()
-
-    assert advanced_context is context
-    assert area.gc_called
-    assert _context_structure(native) == ()
-    assert [_content_text(item) for item in coop_context.garbage] == [
-        "authoritative source"
-    ]
-
-
-def test_counting_area_outputs_one_through_ten() -> None:
-    context, native = _new_context()
-    area = _CountingArea(last_value=10)
-    coop_context = CoopContext(context)
-    coop_context.register(area)
-
-    for expected_value in range(1, 11):
-        advanced_context = coop_context.unfold()
-
-        assert advanced_context is context
-        assert _context_structure(native) == tuple(
-            ("user", str(value))
-            for value in range(1, expected_value + 1)
-        )
-
-    assert area.life_state is AreaLifeState.retired
-
-    advanced_context = coop_context.unfold()
-
-    assert advanced_context is context
-    assert area.gc_called
-    assert _context_structure(native) == ()
-    assert [_content_text(item) for item in coop_context.garbage] == [
-        str(value)
-        for value in range(1, 11)
-    ]
-
-
-def test_compact_area_wraps_an_area_and_promotes_summary() -> None:
-    context, native = _new_context()
-    inner = _CountingArea(last_value=10)
-    area = _ThresholdCompactArea(
-        inner=inner,
-        threshold=4,
-    )
-    coop_context = CoopContext(context)
-    coop_context.register(area)
-
-    for expected_value in range(1, 5):
-        advanced_context = coop_context.unfold()
-
-        assert advanced_context is context
-        assert _context_structure(native) == tuple(
-            ("user", str(value))
-            for value in range(1, expected_value + 1)
-        )
-
-    assert area.life_state is AreaLifeState.retain
-    assert area.observed_lengths == [1, 2, 3]
-
-    advanced_context = coop_context.unfold()
-
-    assert advanced_context is context
-    assert area.life_state is AreaLifeState.retired
-    assert area.observed_lengths == [1, 2, 3, 4]
-    assert not area.gc_called
-    assert _context_structure(native) == (
-        ("user", "1"),
-        ("user", "2"),
-        ("user", "3"),
-        ("user", "4"),
-    )
-
-    advanced_context = coop_context.unfold()
-
-    assert advanced_context is context
-    assert area.gc_called
-    assert inner.gc_called
-    assert [_content_text(item) for item in coop_context.garbage] == [
-        "1",
-        "2",
-        "3",
-        "4",
-    ]
-    assert _context_structure(native) == (
-        ("user", "compacted: 1, 2, 3, 4"),
-    )
+"""Observation and effect regions, including empty/prospective boundaries."""
+
+from hydrangea.context.area.core import InvokeTiming
+from hydrangea.context.coop_context import AreaLane, AreaLayout
+
+from .helpers import Harness, TickStep, assert_same_objects, phase_areas, texts
+
+
+def test_none_then_emit_then_none_keeps_observation_head_and_effect_bounds(h: Harness) -> None:
+    h.reply("prefix")
+    a = h.area("a", steps=[TickStep(), TickStep(("a1", "a2")), TickStep()])
+    h.coop.append_lane(AreaLane(a))
+    h.unfold()
+    ob = h.coop._area_observe_range_mapping[a]
+    assert (ob.start, ob.latest) == (1, 1)
+    assert a not in h.coop._area_effect_range_mapping
+    assert a.observe_count == 0
+    h.reply("reply-1")
+    h.unfold()
+    effect = h.coop._area_effect_range_mapping[a]
+    assert (effect.start, effect.latest) == (2, 3)
+    assert (ob.start, ob.latest) == (1, 1)
+    assert texts(a.snapshots[-1]) == ("reply-1",)
+    h.reply("reply-2")
+    h.unfold()
+    assert (effect.start, effect.latest) == (2, 3)
+    assert (ob.start, ob.latest) == (1, 4)
+    assert texts(a.snapshots[-1]) == ("reply-1", "a1", "a2", "reply-2")
+
+
+def test_repeated_none_on_empty_context_has_valid_empty_observations(h: Harness) -> None:
+    a = h.area("waiting")
+    h.coop.append_lane(AreaLane(a))
+    h.unfold()
+    assert h.coop._area_observe_range_mapping[a].start == 0
+    for _ in range(3):
+        h.unfold()
+        ob = h.coop._area_observe_range_mapping[a]
+        assert (ob.start, ob.latest) == (0, -1)
+        assert a.snapshots[-1] == ()
+        assert a not in h.coop._area_effect_range_mapping
+    assert a.tick_count == 4 and a.observe_count == 3
+
+
+def test_multi_message_effect_and_interleaved_output_use_inclusive_indices(h: Harness) -> None:
+    a = h.area("a", steps=[TickStep(("a0",)), TickStep(("a1", "a2"))])
+    b = h.area("b", steps=[TickStep(("b0",)), TickStep()])
+    h.coop.compose(AreaLayout([a, b]))
+    h.unfold()
+    assert (h.coop._area_effect_range_mapping[a].start, h.coop._area_effect_range_mapping[a].latest) == (0, 0)
+    assert (h.coop._area_effect_range_mapping[b].start, h.coop._area_effect_range_mapping[b].latest) == (1, 1)
+    h.reply("model")
+    before_tick = h.context[:]
+    h.unfold()
+    assert (h.coop._area_effect_range_mapping[a].start, h.coop._area_effect_range_mapping[a].latest) == (0, 4)
+    assert (h.coop._area_effect_range_mapping[b].start, h.coop._area_effect_range_mapping[b].latest) == (1, 1)
+    assert_same_objects(a.snapshots[-1], before_tick)
+    assert_same_objects(b.snapshots[-1], before_tick[1:])
+    assert texts(h.context[:]) == ("a0", "b0", "model", "a1", "a2")
+
+
+def test_all_existing_live_ranges_observe_even_when_tick_is_hidden(h: Harness) -> None:
+    a = h.area("a", steps=[TickStep(("a",))])
+    b = h.area("b", steps=[TickStep(("b",))])
+    h.coop.compose(AreaLayout([a, b]))
+    h.unfold()
+    h.reply("model")
+    urgent = h.area("urgent", timing=InvokeTiming.immediate)
+    h.coop.overlay(urgent, h.coop.fetch_handle(a))
+    before_tick = h.context[:]
+    h.events.clear()
+    h.unfold()
+    assert phase_areas(h.events, "observe") == (a, b)
+    assert phase_areas(h.events, "tick") == (urgent,)
+    assert_same_objects(a.snapshots[-1], before_tick)
+    assert_same_objects(b.snapshots[-1], before_tick[1:])
+    assert urgent.observe_count == 0
+
+
+def test_observe_can_retire_self_before_candidate_selection(h: Harness) -> None:
+    a = h.area("a", on_observe=lambda area, _: area.retire())
+    h.coop.append_lane(AreaLane(a))
+    h.unfold()
+    h.unfold()
+    assert a.tick_count == 1 and a.observe_count == 1
+    assert a.gc_count == 0  # This call's collection preceded observe().
+    h.unfold()
+    assert (a.promote_count, a.gc_count) == (1, 1)
+    assert h.coop.fetch_handle(a) is None
+
+
+def test_gc_updates_observation_to_shortened_context_before_next_tick(h: Harness) -> None:
+    observer = h.area("observer")
+    h.coop.append_lane(AreaLane(observer))
+    h.unfold()
+    h.reply("head")
+    tail = h.area("tail", steps=[TickStep(("tail",)), TickStep(retire=True)], promotions=("summary",))
+    h.coop.append_lane(AreaLane(tail))
+    h.unfold()
+    h.reply("tail-reply")
+    h.unfold()
+    assert texts(observer.snapshots[-1]) == ("head", "tail", "tail-reply")
+    assert h.coop._area_observe_range_mapping[observer].latest == 2
+    old_tail = h.context[1:]
+    h.unfold()
+    assert texts(observer.snapshots[-1]) == ("head", "summary")
+    assert (h.coop._area_observe_range_mapping[observer].start, h.coop._area_observe_range_mapping[observer].latest) == (0, 1)
+    assert_same_objects(h.coop.garbage, old_tail)
+
+
+def test_observe_only_covers_later_area_output_and_model_reply(h: Harness) -> None:
+    observer = h.area("observer")
+    writer = h.area("writer", steps=[TickStep(("later-area",))])
+    h.coop.compose(AreaLayout([observer, writer]))
+    h.unfold()
+    h.reply("model-reply")
+    h.unfold()
+    assert texts(observer.snapshots[-1]) == ("later-area", "model-reply")
+
+
+def test_multiple_emit_messages_create_exact_first_range(h: Harness) -> None:
+    h.reply("prefix")
+    a = h.area("a", steps=[TickStep(("one", "two", "three"))])
+    h.coop.append_lane(AreaLane(a))
+    h.unfold()
+    effect = h.coop._area_effect_range_mapping[a]
+    assert (effect.start, effect.latest) == (1, 3)
+    h.unfold()
+    assert texts(a.snapshots[-1]) == ("one", "two", "three")

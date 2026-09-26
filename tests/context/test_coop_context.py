@@ -1,293 +1,213 @@
-# pyright: reportPrivateUsage=false
+"""Public layout/identity contracts and focused stack primitive tests."""
 
-from collections.abc import Sequence
+from dataclasses import dataclass
 
 import pytest
-from typing_extensions import override
 
-from hydrangea.context import Context, NativeContent
-from hydrangea.context.area import AreaFlowState, AreaLifeState
-from hydrangea.context.coop_context import (
-    ContextIndex,
-    CoopContext,
-    _EffectRange,
+from hydrangea.context.area.core import Area, InvokeTiming
+from hydrangea.context.coop_context import AreaLane, AreaLayout, _AreaChain
+
+from .helpers import (
+    Harness, ProtocolArea, RecordingArea, TickStep, UnhashableArea,
+    assert_same_objects, layout, members, phase_areas, state_snapshot,
 )
-from hydrangea.gateway import GatewayType
-from hydrangea.message import Message, Role
 
 
-class _FakeArea:
-    name: str
-    _life_state: AreaLifeState
-    _flow_state: AreaFlowState
-    _events: list[str]
-    _advance_content: bool
-    observed_count: int
-
-    def __init__(
-        self,
-        name: str,
-        life_state: AreaLifeState,
-        events: list[str],
-        advance_content: bool = False,
-    ) -> None:
-        self.name = name
-        self._life_state = life_state
-        self._flow_state = AreaFlowState.yielded
-        self._events = events
-        self._advance_content = advance_content
-        self.observed_count = 0
-
-    @property
-    def life_state(self) -> AreaLifeState:
-        return self._life_state
-
-    @property
-    def flow_state(self) -> AreaFlowState:
-        return self._flow_state
-
-    def observe(
-        self,
-        context: Sequence[NativeContent],
-    ) -> None:
-        _ = context
-        self.observed_count += 1
-
-    def tick(self) -> list[Message]:
-        if not self._advance_content:
-            return []
-
-        return [
-            Message(
-                role=Role.user,
-                content=f"advanced:{self.name}",
-            )
-        ]
-
-    def promote(self) -> tuple[Message, ...]:
-        self._events.append(f"promote:{self.name}")
-        return (
-            Message(
-                role=Role.user,
-                content=f"promoted:{self.name}",
-            ),
-        )
-
-    def gc_prologue(self) -> None:
-        self._events.append(f"gc:{self.name}")
+def test_compose_preserves_declaration_order_and_area_identity(h: Harness) -> None:
+    a, b, c = (h.area(name) for name in "abc")
+    lane = AreaLane(a, b)
+    h.coop.compose(AreaLayout([lane, c]))
+    assert layout(h.coop) == ((a, b), (c,))
+    assert_same_objects(members(h.coop), (a, b, c))
+    assert h.coop._area_chains[0]._areas is not lane.areas
+    assert_same_objects(lane.areas, (a, b))
+    lane.areas.reverse()
+    lane.areas.append(h.area("declaration-only"))
+    h.unfold()
+    assert phase_areas(h.events, "tick") == (a, b, c)
 
 
-class _UnhashableFakeArea(_FakeArea):
-    @override
-    def __hash__(self) -> int:
-        raise TypeError("unhashable test Area")
+def test_compose_empty_layout_is_noop(h: Harness) -> None:
+    before = state_snapshot(h.coop)
+    h.coop.compose(AreaLayout([]))
+    assert state_snapshot(h.coop) == before
 
 
-def _context_with_messages(count: int) -> Context:
-    context = Context(GatewayType.gemini)
-    for index in range(count):
-        context.emplace_message(
-            Message(
-                role=Role.user,
-                content=f"message:{index}",
-            )
-        )
-
-    return context
-
-
-def test_context_slice_uses_python_bounds() -> None:
-    context = _context_with_messages(4)
-
-    assert len(context[1:3]) == 2
-    assert len(context[:]) == 4
-    assert context[2:2] == ()
-    assert len(context[-2:]) == 2
+def test_same_fields_are_independent_keys_and_hash_survives_retirement(h: Harness) -> None:
+    shared_fault = RuntimeError("unused shared fault")
+    a, b = h.area("same", fault=shared_fault), h.area("same", fault=shared_fault)
+    assert a.__dict__ == b.__dict__
+    assert a == a and a != b
+    saved_hash = hash(a)
+    mapping = {a: "first", b: "second"}
+    assert len(mapping) == 2 and len({a, b}) == 2
+    h.coop.compose(AreaLayout([a, b]))
+    h.unfold()
+    a.retire()
+    assert hash(a) == saved_hash and mapping[a] == "first"
+    h.unfold()
+    assert h.coop.fetch_handle(a) is None
+    assert h.coop.fetch_handle(b) is not None
+    assert (a.gc_count, b.gc_count) == (1, 0)
 
 
-def test_register_rejects_unhashable_area() -> None:
-    context = CoopContext(_context_with_messages(0))
-    area = _UnhashableFakeArea(
-        "unhashable",
-        AreaLifeState.retain,
-        [],
-    )
+def test_dataclass_eq_false_inherits_identity_semantics() -> None:
+    @dataclass(eq=False)
+    class DataArea(Area):
+        label: str
 
-    with pytest.raises(
-        TypeError,
-        match="Context Area must be hashable",
-    ):
-        context.register(area)
+        def __post_init__(self) -> None:
+            super().__init__(invoke_timing=InvokeTiming.deferrable)
 
-    assert context._areas == []
+        def tick(self):
+            return None
 
-
-def test_register_rejects_duplicate_instance() -> None:
-    context = CoopContext(_context_with_messages(0))
-    area = _FakeArea(
-        "duplicate",
-        AreaLifeState.retain,
-        [],
-    )
-    context.register(area)
-
-    with pytest.raises(
-        ValueError,
-        match="Context Area instance is already registered",
-    ):
-        context.register(area)
-
-    assert context._areas == [area]
+    a, b = DataArea("same"), DataArea("same")
+    assert a != b and len({a, b}) == 2
+    assert DataArea.__eq__ is Area.__eq__
+    assert DataArea.__hash__ is Area.__hash__
 
 
-def test_observe_only_updates_areas_reached_by_cursor() -> None:
-    events: list[str] = []
-    yielded_prefix = _FakeArea(
-        "yielded-prefix",
-        AreaLifeState.retain,
-        events,
-        advance_content=True,
-    )
-    exclusive = _FakeArea(
-        "exclusive",
-        AreaLifeState.retain,
-        events,
-        advance_content=True,
-    )
-    exclusive._flow_state = AreaFlowState.exclusive
-    hidden_tail = _FakeArea(
-        "hidden-tail",
-        AreaLifeState.retain,
-        events,
-        advance_content=True,
-    )
-
-    context = CoopContext(_context_with_messages(0))
-    context.register(yielded_prefix)
-    context.register(exclusive)
-    context.register(hidden_tail)
-
-    _ = context.unfold()
-    assert yielded_prefix.observed_count == 0
-    assert exclusive.observed_count == 0
-    assert hidden_tail.observed_count == 0
-
-    _ = context.unfold()
-    assert yielded_prefix.observed_count == 0
-    assert exclusive.observed_count == 1
-    assert hidden_tail.observed_count == 0
-
-    _ = context.unfold()
-    assert yielded_prefix.observed_count == 0
-    assert exclusive.observed_count == 2
-    assert hidden_tail.observed_count == 0
+def test_structural_protocol_areas_with_colliding_hashes_stay_distinct(h: Harness) -> None:
+    a, b = ProtocolArea(), ProtocolArea()
+    assert not isinstance(a, Area)
+    assert hash(a) == hash(b) and a != b
+    h.coop.compose(AreaLayout([a, b]))
+    h.unfold()
+    assert (a.tick_count, b.tick_count) == (1, 1)
+    assert len(h.coop._area_observe_range_mapping) == 2
+    assert h.coop.fetch_handle(a)._chain_ref is not h.coop.fetch_handle(b)._chain_ref
 
 
-def test_collector_follows_transitive_overlap_chain() -> None:
-    events: list[str] = []
-    area_a = _FakeArea("a", AreaLifeState.retain, events)
-    area_b = _FakeArea("b", AreaLifeState.retired, events)
-    area_c = _FakeArea("c", AreaLifeState.retired, events)
-    area_d = _FakeArea("d", AreaLifeState.retired, events)
-
-    context = CoopContext(_context_with_messages(10))
-    for area in (area_a, area_b, area_c, area_d):
-        context.register(area)
-
-    context._area_mapping = {
-        area_a: _EffectRange(ContextIndex(0), ContextIndex(3)),
-        area_b: _EffectRange(ContextIndex(2), ContextIndex(5)),
-        area_c: _EffectRange(ContextIndex(4), ContextIndex(7)),
-        area_d: _EffectRange(ContextIndex(6), ContextIndex(9)),
-    }
-
-    assert context._collect() is None
-
-    area_a._life_state = AreaLifeState.retired
-    plan = context._collect()
-
-    assert plan is not None
-    assert plan.earliest == ContextIndex(0)
-    assert plan.areas == (area_d, area_c, area_b, area_a)
+@pytest.mark.parametrize("shape", ["raw", "same-lane", "cross-lane", "mixed"])
+def test_compose_rejects_duplicates_across_entire_batch_atomically(h: Harness, shape: str) -> None:
+    existing = h.area("existing")
+    h.coop.append_lane(AreaLane(existing))
+    h.unfold()
+    a, b = h.area("a"), h.area("b")
+    items = {
+        "raw": [a, b, a],
+        "same-lane": [b, AreaLane(a, a)],
+        "cross-lane": [AreaLane(a), AreaLane(b, a)],
+        "mixed": [AreaLane(a, b), a],
+    }[shape]
+    before = state_snapshot(h.coop)
+    with pytest.raises(ValueError, match="duplicat|already registered"):
+        h.coop.compose(AreaLayout(items))
+    assert state_snapshot(h.coop) == before
+    assert h.coop.fetch_handle(a) is None
 
 
-def test_gc_repairs_cursor_and_preserves_unwind_order() -> None:
-    events: list[str] = []
-    survivor = _FakeArea("survivor", AreaLifeState.retain, events)
-    outer = _FakeArea("outer", AreaLifeState.retired, events)
-    inner = _FakeArea("inner", AreaLifeState.retired, events)
-
-    context = CoopContext(_context_with_messages(6))
-    for area in (survivor, outer, inner):
-        context.register(area)
-
-    context._area_cursor_store = outer
-    context._area_mapping = {
-        survivor: _EffectRange(ContextIndex(0), ContextIndex(1)),
-        outer: _EffectRange(ContextIndex(2), ContextIndex(5)),
-        inner: _EffectRange(ContextIndex(3), ContextIndex(4)),
-    }
-
-    plan = context._collect()
-    assert plan is not None
-    assert plan.areas == (outer, inner)
-
-    context._gc(plan)
-
-    assert context._areas == [survivor]
-    assert tuple(context._area_mapping) == (survivor,)
-    assert context._area_cursor_store is survivor
-    assert len(context.garbage) == 4
-    assert len(context._context) == 4
-    assert events == [
-        "promote:inner",
-        "promote:outer",
-        "gc:inner",
-        "gc:outer",
-    ]
+@pytest.mark.parametrize("operation", ["compose", "append", "overlay"])
+def test_registered_instance_is_rejected_without_partial_changes(h: Harness, operation: str) -> None:
+    existing, fresh = h.area("existing"), h.area("fresh")
+    h.coop.append_lane(AreaLane(existing))
+    h.unfold()
+    before = state_snapshot(h.coop)
+    with pytest.raises(ValueError, match="already registered"):
+        if operation == "compose":
+            h.coop.compose(AreaLayout([fresh, AreaLane(existing)]))
+        elif operation == "append":
+            h.coop.append_lane(AreaLane(fresh, existing))
+        else:
+            h.coop.overlay(existing, h.coop.fetch_handle(existing))
+    assert state_snapshot(h.coop) == before
 
 
-def test_cursor_repair_uses_collection_membership() -> None:
-    events: list[str] = []
-    selected = _FakeArea("selected", AreaLifeState.retired, events)
-    disjoint = _FakeArea("disjoint", AreaLifeState.retired, events)
-
-    context = CoopContext(_context_with_messages(6))
-    context.register(selected)
-    context.register(disjoint)
-    context._area_cursor_store = selected
-    context._area_mapping = {
-        selected: _EffectRange(ContextIndex(4), ContextIndex(5)),
-        disjoint: _EffectRange(ContextIndex(0), ContextIndex(1)),
-    }
-
-    plan = context._collect()
-    assert plan is not None
-    assert plan.areas == (selected,)
-
-    context._gc(plan)
-
-    assert context._area_cursor_store is disjoint
-    assert context._areas == [disjoint]
-    assert tuple(context._area_mapping) == (disjoint,)
+@pytest.mark.parametrize("operation", ["compose", "append", "overlay"])
+def test_unhashable_area_is_rejected_before_insertion(h: Harness, operation: str) -> None:
+    existing, fresh = h.area("existing"), h.area("fresh")
+    bad = UnhashableArea()
+    h.coop.append_lane(AreaLane(existing))
+    h.unfold()
+    before = state_snapshot(h.coop)
+    with pytest.raises(TypeError, match="hashable"):
+        if operation == "compose":
+            h.coop.compose(AreaLayout([fresh, AreaLane(bad)]))
+        elif operation == "append":
+            h.coop.append_lane(AreaLane(fresh, bad))
+        else:
+            h.coop.overlay(bad, h.coop.fetch_handle(existing))
+    assert state_snapshot(h.coop) == before
 
 
-def test_advance_can_collect_entire_heap_without_cursor() -> None:
-    events: list[str] = []
-    only_area = _FakeArea("only", AreaLifeState.retired, events)
+def test_append_rejects_duplicate_new_instances_atomically(h: Harness) -> None:
+    a = h.area("a")
+    before = state_snapshot(h.coop)
+    with pytest.raises(ValueError, match="duplicat"):
+        h.coop.append_lane(AreaLane(a, a))
+    assert state_snapshot(h.coop) == before
 
-    context = CoopContext(_context_with_messages(2))
-    context.register(only_area)
-    context._area_mapping = {
-        only_area: _EffectRange(ContextIndex(0), ContextIndex(1)),
-    }
 
-    result = context.unfold()
+def test_fetch_handle_is_identity_based_and_missing_returns_none(h: Harness) -> None:
+    a, b, c = (h.area(name) for name in "abc")
+    h.coop.compose(AreaLayout([AreaLane(a, b), c]))
+    first, again, same_lane = (h.coop.fetch_handle(x) for x in (a, a, b))
+    assert first._chain_ref is again._chain_ref is same_lane._chain_ref
+    assert h.coop.fetch_handle(c)._chain_ref is not first._chain_ref
+    assert h.coop.fetch_handle(h.area("a")) is None
 
-    assert result is context._context
-    assert context._areas == []
-    assert context._area_mapping == {}
-    assert context._area_cursor_store is None
-    assert len(context.garbage) == 2
-    assert len(context._context) == 1
-    assert events == ["promote:only", "gc:only"]
+
+def test_foreign_handle_does_not_modify_either_context(h: Harness, gateway) -> None:
+    other = Harness(gateway)
+    root = other.area("root")
+    other.coop.append_lane(AreaLane(root))
+    before, foreign_before = state_snapshot(h.coop), state_snapshot(other.coop)
+    with pytest.raises(ValueError, match="Handle"):
+        h.coop.overlay(h.area("new"), other.coop.fetch_handle(root))
+    assert state_snapshot(h.coop) == before
+    assert state_snapshot(other.coop) == foreign_before
+
+
+def test_handle_survives_partial_deletion_then_becomes_stale(h: Harness) -> None:
+    a, b = h.area("a"), h.area("b")
+    h.coop.append_lane(AreaLane(a, b))
+    handle = h.coop.fetch_handle(a)
+    a.retire()
+    h.unfold()
+    assert h.coop.fetch_handle(a) is None
+    assert h.coop.fetch_handle(b)._chain_ref is handle._chain_ref
+    urgent = h.area("urgent")
+    h.coop.overlay(urgent, handle)
+    assert layout(h.coop) == ((urgent, b),)
+    urgent.retire()
+    b.retire()
+    h.unfold()
+    before = state_snapshot(h.coop)
+    with pytest.raises(ValueError, match="Handle"):
+        h.coop.overlay(h.area("late"), handle)
+    assert state_snapshot(h.coop) == before
+
+
+def test_collecting_empty_runtime_allows_new_layout(h: Harness) -> None:
+    old = h.area("old", steps=[TickStep(retire=True)])
+    h.coop.append_lane(AreaLane(old))
+    h.unfold()
+    h.unfold()
+    assert not members(h.coop) and h.coop._cursor_store is None
+    new = h.area("new", steps=[TickStep(("new-content",))])
+    h.coop.append_lane(AreaLane(new))
+    h.unfold()
+    assert new.tick_count == 1 and old.gc_count == 1
+
+
+def test_stack_access_and_reverse_deletion_are_consistent() -> None:
+    a, b, c, d = (RecordingArea(name) for name in "abcd")
+    chain = _AreaChain(c, b, a)
+    assert tuple(chain) == (a, b, c)
+    assert chain[0] is a and chain[-1] is c and chain.top() is a
+    assert a in chain and RecordingArea("a") not in chain
+    chain.push(d)
+    assert tuple(chain) == (d, a, b, c)
+    del chain[1]
+    assert tuple(chain) == (d, b, c)
+    chain.pop_top()
+    assert tuple(chain) == (b, c)
+    del chain[1]
+    chain.pop_top()
+    chain.pop_top()
+    assert chain.is_empty() and len(chain) == 0
+    with pytest.raises(RuntimeError, match="Empty"):
+        chain.top()
+    with pytest.raises(IndexError):
+        _ = chain[0]
