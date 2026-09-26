@@ -7,14 +7,18 @@ lang: en
 
 # Hydrangea Documentation
 
-<p><strong>English</strong> · <a href="{% link ja/index.md %}">日本語</a></p>
-
 Hydrangea is a small, lightweight LLM gateway for applications that need explicit control over context, tools, and provider-native responses.
 
 > Hydrangea is currently an early prototype. Its public API may change without notice.
 
-## Context Areas
+## Area
 
-A Context Area contributes caller-constructed messages to a `CoopContext` and declares when those messages may be reclaimed.
+An Area is a stateful unit that can observe Context, emit messages, and eventually retire.
 
-[Declare a Context Area]({% link en/context-areas.md %})
+[Area]({% link en/area/index.md %})
+
+## CoopContext
+
+`CoopContext` combines a Hydrangea `Context` with an `AreaLayout`.
+
+[CoopContext]({% link en/coop-context/index.md %})

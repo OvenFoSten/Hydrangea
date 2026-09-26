@@ -7,14 +7,18 @@ lang: ja
 
 # Hydrangea ドキュメント
 
-<p><a href="{% link en/index.md %}">English</a> · <strong>日本語</strong></p>
-
 Hydrangea は、Context、Tool、およびプロバイダー固有のレスポンスを明示的に制御したいアプリケーション向けの、小規模で軽量な LLM ゲートウェイです。
 
 > Hydrangea は現在、初期プロトタイプの段階にあります。公開 API は予告なく変更される可能性があります。
 
-## Context Area
+## Area
 
-Context Area は、呼び出し側で構築したメッセージを `CoopContext` に追加し、それらをいつ回収できるかを宣言します。
+Area は、Context を観察し、メッセージを出力し、最終的に retire する、状態を持つ単位です。
 
-[Context Area を宣言する]({% link ja/context-areas.md %})
+[Area]({% link ja/area/index.md %})
+
+## CoopContext
+
+`CoopContext` は、Hydrangea の `Context` と `AreaLayout` を組み合わせます。
+
+[CoopContext]({% link ja/coop-context/index.md %})
