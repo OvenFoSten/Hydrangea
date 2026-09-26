@@ -7,6 +7,10 @@ Hydrangea は、軽量で小さな LLM ゲートウェイです。
 > [!WARNING]
 > Hydrangea は現在、初期段階のプロトタイプです。公開 API は予告なく変更される可能性があります。
 
+## ドキュメント
+
+[ドキュメントサイト](https://hydrangea.docs.ovenfosten.com/)で、英語版と日本語版をご覧いただけます。
+
 ## 特徴
 
 Cooperative Context（`CoopContext`）は、呼び出し側が定義した Context Area による一時的なメッセージの追加と、明示的なスケジューリング、ライフサイクル、回収のセマンティクスを提供します。
