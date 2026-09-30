@@ -122,7 +122,7 @@ class Gemini:
                     include_thoughts=True,
                 ),
                 system_instruction=prompt,
-                response_json_schema=schema,
+                response_schema=schema,
                 response_mime_type=(
                     "application/json" if schema is not None else None
                 ),
