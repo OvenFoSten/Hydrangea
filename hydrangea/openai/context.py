@@ -1,6 +1,6 @@
 import json
 from collections.abc import Iterable, Mapping
-from typing import TypeAlias, cast
+from typing import TypeAlias, TypeVar, cast
 
 from openai.types.responses import (
     EasyInputMessageParam,
@@ -9,6 +9,7 @@ from openai.types.responses import (
     ResponseInputItemParam,
 )
 from openai.types.responses.response_input_item_param import FunctionCallOutput
+from pydantic import BaseModel, ValidationError
 from typing_extensions import assert_never
 
 from ..message import (
@@ -20,6 +21,7 @@ from ..message import (
 
 
 OpenAIContextContent: TypeAlias = Response | ResponseInputItemParam
+SCHEMA_INPUT = TypeVar("SCHEMA_INPUT", bound=BaseModel)
 
 
 def _function_tool_call_to_tool_call(
@@ -75,6 +77,30 @@ def function_reply_turn_to_openai_params(
         )
 
     return tuple(outputs)
+
+
+def _assistant_input_text(content: ResponseInputItemParam) -> str:
+    params = cast(Mapping[str, object], content)
+    if params.get("role") != "assistant":
+        return ""
+
+    raw_content = params.get("content")
+    if isinstance(raw_content, str):
+        return raw_content
+    if not isinstance(raw_content, list):
+        return ""
+
+    texts: list[str] = []
+    for part in cast(list[object], raw_content):
+        if not isinstance(part, dict):
+            continue
+        fields = cast(Mapping[str, object], part)
+        if fields.get("type") not in ("input_text", "output_text"):
+            continue
+        text = fields.get("text")
+        if isinstance(text, str):
+            texts.append(text)
+    return "".join(texts)
 
 
 class OpenAIContext:
@@ -155,6 +181,26 @@ class OpenAIContext:
                 raise TypeError("OpenAI custom tool calls are not supported.")
 
         return tool_calls or None
+
+    def last_schema_output(
+        self,
+        schema: type[SCHEMA_INPUT],
+    ) -> SCHEMA_INPUT | None:
+        if not self._contents:
+            return None
+
+        content = self._contents[-1]
+        response_json = (
+            content.output_text
+            if isinstance(content, Response)
+            else _assistant_input_text(content)
+        )
+        if not response_json:
+            return None
+        try:
+            return schema.model_validate_json(response_json)
+        except ValidationError:
+            return None
 
     @property
     def contents(self) -> list[OpenAIContextContent]:

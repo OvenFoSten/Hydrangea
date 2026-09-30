@@ -3,8 +3,10 @@ from typing import cast
 
 from openai import OpenAI as OpenAIClient
 from openai import omit
-from openai.types.responses import FunctionToolParam, Response
+from openai.lib._pydantic import to_strict_json_schema
+from openai.types.responses import FunctionToolParam, Response, ResponseTextConfigParam
 from openai.types.shared import ReasoningEffort as OpenAIReasoningEffort
+from pydantic import BaseModel
 from typing_extensions import assert_never
 
 from .config import (
@@ -53,6 +55,23 @@ def _tool_declaration_to_openai_tool(
     }
 
 
+def _schema_to_openai_text_config(
+    schema: type[BaseModel],
+) -> ResponseTextConfigParam:
+    # Use the SDK's conversion for nested objects and required nullable fields.
+    json_schema = dict(
+        cast(Mapping[str, object], to_strict_json_schema(schema))
+    )
+    return {
+        "format": {
+            "type": "json_schema",
+            "name": schema.__name__,
+            "schema": json_schema,
+            "strict": True,
+        }
+    }
+
+
 class OpenAI:
     _instruction: SystemInstruction
     _config: OpenAIConfig
@@ -90,6 +109,7 @@ class OpenAI:
         context: object,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
+        schema: type[BaseModel] | None,
         temperature: float | None,
     ) -> Response:
         if not isinstance(context, OpenAIContext):
@@ -113,6 +133,11 @@ class OpenAI:
                 "effort": _reasoning_effort_to_openai_reasoning_effort(effort),
                 "summary": "auto",
             },
+            text=(
+                _schema_to_openai_text_config(schema)
+                if schema is not None
+                else omit
+            ),
             temperature=(
                 temperature
                 if temperature is not None
