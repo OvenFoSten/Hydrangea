@@ -63,7 +63,7 @@ class LLM:
         context: Context,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
-        schema:type[BaseModel]|None,
+        schema:type[BaseModel]|None = None,
         temperature: float | None = None
     ) -> NativeContent:
         return self._native.invoke(
