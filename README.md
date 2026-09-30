@@ -25,23 +25,6 @@ python -m pip install -e .
 
 This keeps the installed package linked to the current source tree.
 
-## OpenAI responses and reasoning
-
-OpenAI `LLM.invoke()` returns the SDK's complete `Response`. Append it with
-`context.push_back(response)` to keep all output items, including encrypted
-reasoning and function calls, together as one native context entry. Requests use
-`store=False` and replay the history locally, without `previous_response_id`.
-Function replies use `function_call_output` items with the original `call_id`.
-The configured endpoint must support `/v1/responses`.
-
-Like `GeminiResponse`, `hydrangea.openai.OpenAIResponse(response)` exposes
-`output`, `thoughts` (reasoning summaries), `tool_calls`, and the original
-`content`. To save and restore a native response, use
-`response.model_dump_json()` and `openai.types.responses.Response.model_validate_json(snapshot)`.
-Restoring the complete object preserves encrypted reasoning for the next call.
-`OpenAIContext.input` provides the replayable items; this replaces the previous
-Chat Completions `messages` property and `ChatCompletionMessage` return type.
-
 ## Why Hydrangea?
 
 Hydrangea began as an internal module built for Aster. I wanted to manage LLM context myself instead of handing that responsibility to a larger framework. When another project needed the same code, extracting it into a small package was cleaner than maintaining multiple copies.
