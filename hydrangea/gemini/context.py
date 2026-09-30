@@ -106,8 +106,8 @@ class GeminiContext:
         context_size = len(self._contents)
         if length < 0 or length > context_size:
             raise ValueError(
-                "Invalid tail length: "
-                f"length={length}, "
+                "Invalid tail length: " +
+                f"length={length}, " +
                 f"context_size={context_size}."
             )
 
