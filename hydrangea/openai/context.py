@@ -2,20 +2,13 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import TypeAlias, cast
 
-from openai.types.chat import (
-    ChatCompletionAssistantMessageParam,
-    ChatCompletionMessage,
-    ChatCompletionMessageCustomToolCallParam,
-    ChatCompletionMessageFunctionToolCall,
-    ChatCompletionMessageFunctionToolCallParam,
-    ChatCompletionMessageParam,
-    ChatCompletionMessageToolCallUnionParam,
-    ChatCompletionToolMessageParam,
-    ChatCompletionUserMessageParam,
+from openai.types.responses import (
+    EasyInputMessageParam,
+    Response,
+    ResponseFunctionToolCall,
+    ResponseInputItemParam,
 )
-from openai.types.chat.chat_completion_message_custom_tool_call import (
-    ChatCompletionMessageCustomToolCall,
-)
+from openai.types.responses.response_input_item_param import FunctionCallOutput
 from typing_extensions import assert_never
 
 from ..message import (
@@ -26,151 +19,62 @@ from ..message import (
 )
 
 
-OpenAIContextContent: TypeAlias = (
-    ChatCompletionMessage
-    | ChatCompletionMessageParam
-)
-
-
-def _function_tool_call_to_param(
-    tool_call: ChatCompletionMessageFunctionToolCall,
-) -> ChatCompletionMessageFunctionToolCallParam:
-    return {
-        "id": tool_call.id,
-        "type": "function",
-        "function": {
-            "name": tool_call.function.name,
-            "arguments": tool_call.function.arguments,
-        },
-    }
-
-
-def _custom_tool_call_to_param(
-    tool_call: ChatCompletionMessageCustomToolCall,
-) -> ChatCompletionMessageCustomToolCallParam:
-    return {
-        "id": tool_call.id,
-        "type": "custom",
-        "custom": {
-            "name": tool_call.custom.name,
-            "input": tool_call.custom.input,
-        },
-    }
-
-
-def _native_message_to_param(
-    message: ChatCompletionMessage,
-) -> ChatCompletionAssistantMessageParam:
-    result = ChatCompletionAssistantMessageParam(
-        role="assistant"
-    )
-
-    if message.content is not None:
-        result["content"] = message.content
-    if message.refusal is not None:
-        result["refusal"] = message.refusal
-    if message.audio is not None:
-        result["audio"] = {"id": message.audio.id}
-    if message.function_call is not None:
-        result["function_call"] = {
-            "name": message.function_call.name,
-            "arguments": message.function_call.arguments,
-        }
-    if message.tool_calls:
-        tool_calls: list[
-            ChatCompletionMessageToolCallUnionParam
-        ] = []
-        for tool_call in message.tool_calls:
-            match tool_call:
-                case ChatCompletionMessageFunctionToolCall():
-                    tool_calls.append(
-                        _function_tool_call_to_param(tool_call)
-                    )
-                case ChatCompletionMessageCustomToolCall():
-                    tool_calls.append(
-                        _custom_tool_call_to_param(tool_call)
-                    )
-                case _:
-                    assert_never(tool_call)
-
-        result["tool_calls"] = tool_calls
-
-    return result
+OpenAIContextContent: TypeAlias = Response | ResponseInputItemParam
 
 
 def _function_tool_call_to_tool_call(
-    tool_call: ChatCompletionMessageFunctionToolCall,
+    tool_call: ResponseFunctionToolCall,
 ) -> ToolCall:
     try:
-        parsed_arguments = cast(
-            object,
-            json.loads(tool_call.function.arguments),
-        )
+        parsed_arguments = cast(object, json.loads(tool_call.arguments))
     except json.JSONDecodeError as error:
         raise ValueError(
             "OpenAI returned invalid JSON tool arguments for "
-            f"{tool_call.function.name!r}."
+            f"{tool_call.name!r}."
         ) from error
 
     if not isinstance(parsed_arguments, dict):
         raise ValueError(
             "OpenAI returned non-object tool arguments for "
-            f"{tool_call.function.name!r}."
+            f"{tool_call.name!r}."
         )
 
-    arguments = dict(
-        cast(Mapping[str, object], parsed_arguments)
-    )
     return ToolCall(
-        call_id=tool_call.id,
-        name=tool_call.function.name,
-        arguments=arguments,
+        call_id=tool_call.call_id,
+        name=tool_call.name,
+        arguments=dict(cast(Mapping[str, object], parsed_arguments)),
     )
 
 
-def message_to_openai_param(
-    message: Message,
-) -> ChatCompletionMessageParam:
+def message_to_openai_param(message: Message) -> EasyInputMessageParam:
     match message.role:
         case Role.user:
-            user_message = ChatCompletionUserMessageParam(
-                role="user",
-                content=message.content,
-            )
-            return user_message
-
+            return {"role": "user", "content": message.content}
         case Role.assistant:
-            assistant_message = (
-                ChatCompletionAssistantMessageParam(
-                    role="assistant",
-                    content=message.content,
-                )
-            )
-            return assistant_message
-
+            return {"role": "assistant", "content": message.content}
         case _:
             assert_never(message.role)
 
 
 def function_reply_turn_to_openai_params(
     turn: FunctionReplyTurn,
-) -> tuple[ChatCompletionToolMessageParam, ...]:
-    messages: list[ChatCompletionToolMessageParam] = []
+) -> tuple[FunctionCallOutput, ...]:
+    outputs: list[FunctionCallOutput] = []
     for reply in turn.replies:
         if reply.call_id is None:
             raise ValueError(
                 "OpenAI function replies require a tool call ID."
             )
 
-        messages.append(
-            ChatCompletionToolMessageParam(
-                role="tool",
-                tool_call_id=reply.call_id,
-                content=reply.content.model_dump_json(),
+        outputs.append(
+            FunctionCallOutput(
+                type="function_call_output",
+                call_id=reply.call_id,
+                output=reply.content.model_dump_json(),
             )
         )
 
-    return tuple(messages)
+    return tuple(outputs)
 
 
 class OpenAIContext:
@@ -180,36 +84,34 @@ class OpenAIContext:
         self,
         contents: Iterable[OpenAIContextContent] | None = None,
     ) -> None:
-        self._contents = list(contents or ())
+        self._contents = []
+        for content in contents if contents is not None else ():
+            self.push_back(content)
 
     def push_back(self, content: object) -> None:
-        if isinstance(content, ChatCompletionMessage):
+        if isinstance(content, Response):
             self._contents.append(content)
             return
 
         if isinstance(content, dict):
-            self._contents.append(
-                cast(ChatCompletionMessageParam, content)
-            )
+            self._contents.append(cast(ResponseInputItemParam, content))
             return
 
         raise TypeError(
-            "OpenAIContext requires a ChatCompletionMessage or "
-            "ChatCompletionMessageParam, got "
+            "OpenAIContext requires a Response or "
+            "ResponseInputItemParam, got "
             f"{type(content).__name__}."
         )
 
     def emplace_message(self, message: Message) -> None:
-        self._contents.append(
-            message_to_openai_param(message)
-        )
+        self.push_back(message_to_openai_param(message))
 
     def emplace_function_reply_turn(
         self,
         turn: FunctionReplyTurn,
     ) -> None:
-        messages = function_reply_turn_to_openai_params(turn)
-        self._contents.extend(messages)
+        outputs = function_reply_turn_to_openai_params(turn)
+        self._contents.extend(outputs)
 
     def detach_tail(
         self,
@@ -242,24 +144,15 @@ class OpenAIContext:
             return None
 
         content = self._contents[-1]
-        if not isinstance(content, ChatCompletionMessage):
-            return None
-        if not content.tool_calls:
+        if not isinstance(content, Response):
             return None
 
         tool_calls: list[ToolCall] = []
-        for tool_call in content.tool_calls:
-            match tool_call:
-                case ChatCompletionMessageFunctionToolCall():
-                    tool_calls.append(
-                        _function_tool_call_to_tool_call(tool_call)
-                    )
-                case ChatCompletionMessageCustomToolCall():
-                    raise TypeError(
-                        "OpenAI custom tool calls are not supported."
-                    )
-                case _:
-                    assert_never(tool_call)
+        for item in content.output:
+            if isinstance(item, ResponseFunctionToolCall):
+                tool_calls.append(_function_tool_call_to_tool_call(item))
+            elif item.type == "custom_tool_call":
+                raise TypeError("OpenAI custom tool calls are not supported.")
 
         return tool_calls or None
 
@@ -268,17 +161,22 @@ class OpenAIContext:
         return self._contents.copy()
 
     @property
-    def messages(self) -> list[ChatCompletionMessageParam]:
-        messages: list[ChatCompletionMessageParam] = []
+    def input(self) -> list[ResponseInputItemParam]:
+        items: list[ResponseInputItemParam] = []
         for content in self._contents:
-            if isinstance(content, ChatCompletionMessage):
-                messages.append(
-                    _native_message_to_param(content)
+            if isinstance(content, Response):
+                # Replay every output item, including encrypted reasoning, in order.
+                items.extend(
+                    cast(
+                        ResponseInputItemParam,
+                        item.model_dump(mode="json", exclude_none=True),
+                    )
+                    for item in content.output
                 )
             else:
-                messages.append(content)
+                items.append(content)
 
-        return messages
+        return items
 
     def __len__(self) -> int:
         return len(self._contents)

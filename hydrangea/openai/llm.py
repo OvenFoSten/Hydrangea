@@ -3,12 +3,8 @@ from typing import cast
 
 from openai import OpenAI as OpenAIClient
 from openai import omit
-from openai.types.chat import (
-    ChatCompletionDeveloperMessageParam,
-    ChatCompletionFunctionToolParam,
-    ChatCompletionMessage,
-    ChatCompletionReasoningEffort,
-)
+from openai.types.responses import FunctionToolParam, Response
+from openai.types.shared import ReasoningEffort as OpenAIReasoningEffort
 from typing_extensions import assert_never
 
 from .config import (
@@ -25,7 +21,7 @@ from ..tool import ToolDeclaration
 
 def _reasoning_effort_to_openai_reasoning_effort(
     effort: ReasoningEffort,
-) -> ChatCompletionReasoningEffort:
+) -> OpenAIReasoningEffort:
     match effort:
         case ReasoningEffort.minimal:
             return "minimal"
@@ -41,7 +37,7 @@ def _reasoning_effort_to_openai_reasoning_effort(
 
 def _tool_declaration_to_openai_tool(
     declaration: ToolDeclaration,
-) -> ChatCompletionFunctionToolParam:
+) -> FunctionToolParam:
     parameters = dict(
         cast(
             Mapping[str, object],
@@ -50,11 +46,10 @@ def _tool_declaration_to_openai_tool(
     )
     return {
         "type": "function",
-        "function": {
-            "name": declaration.name,
-            "description": declaration.description,
-            "parameters": parameters,
-        },
+        "name": declaration.name,
+        "description": declaration.description,
+        "parameters": parameters,
+        "strict": False,
     }
 
 
@@ -96,7 +91,7 @@ class OpenAI:
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
         temperature: float | None,
-    ) -> ChatCompletionMessage:
+    ) -> Response:
         if not isinstance(context, OpenAIContext):
             raise TypeError(
                 "Context implementation does not match OpenAI: "
@@ -104,25 +99,20 @@ class OpenAI:
                 f"{type(context).__name__}."
             )
 
-        messages = context.messages
-        instruction = ChatCompletionDeveloperMessageParam(
-            role="developer",
-            content=self._instruction,
-        )
-        messages.insert(0, instruction)
-
         tools = [
             _tool_declaration_to_openai_tool(declaration)
             for declaration in tool_declarations
         ]
-        response = self._client.chat.completions.create(
+        response = self._client.responses.create(
             model=self._config.model_name,
-            messages=messages,
-            reasoning_effort=(
-                _reasoning_effort_to_openai_reasoning_effort(
-                    effort
-                )
-            ),
+            instructions=self._instruction,
+            input=context.input,
+            store=False,
+            include=["reasoning.encrypted_content"],
+            reasoning={
+                "effort": _reasoning_effort_to_openai_reasoning_effort(effort),
+                "summary": "auto",
+            },
             temperature=(
                 temperature
                 if temperature is not None
@@ -131,13 +121,13 @@ class OpenAI:
             tools=tools if tools else omit,
         )
 
-        if not response.choices:
+        if not response.output:
             raise ValueError(
-                "No choices from OpenAI, "
+                "No output from OpenAI, "
                 "please check the API availability."
             )
 
-        return response.choices[0].message
+        return response
 
 
 __all__ = ["OpenAI"]
