@@ -1,5 +1,6 @@
 from typing import Protocol
 from typing_extensions import assert_never
+from pydantic import BaseModel
 
 from .instruction import SystemInstruction
 from .config import LLMConfig
@@ -15,6 +16,7 @@ from .reasoning import ReasoningEffort
 from .tool import ToolDeclaration
 
 
+
 class _LLMImplementation(Protocol):
     @property
     def gateway_type(self) -> GatewayType:
@@ -25,6 +27,7 @@ class _LLMImplementation(Protocol):
         context: ContextImplementation,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
+        schema:type[BaseModel]|None,
         temperature: float | None
     ) -> NativeContent:
         ...
@@ -60,12 +63,14 @@ class LLM:
         context: Context,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
+        schema:type[BaseModel]|None,
         temperature: float | None = None
     ) -> NativeContent:
         return self._native.invoke(
             context=context.native,
             effort=effort,
             tool_declarations=tool_declarations,
+            schema=schema,
             temperature=temperature
         )
 

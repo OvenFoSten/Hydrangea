@@ -1,8 +1,9 @@
 from collections.abc import Iterable
 from collections.abc import Mapping
-from typing import cast
+from typing import TypeVar, cast
 
 from google.genai import types
+from pydantic import BaseModel, ValidationError
 
 from ..message import (
     FunctionReplyTurn,
@@ -64,6 +65,9 @@ def gemini_function_call_to_tool_call(
         name=function_call.name,
         arguments=arguments,
     )
+
+
+SCHEMA_INPUT = TypeVar("SCHEMA_INPUT", bound=BaseModel)
 
 
 class GeminiContext:
@@ -150,6 +154,26 @@ class GeminiContext:
                 )
 
         return tool_calls or None
+
+    def last_schema_output(self, schema: type[SCHEMA_INPUT]) -> SCHEMA_INPUT | None:
+        if len(self._contents) == 0:
+            return None
+        content = self._contents[-1]
+        if content.role != _GEMINI_ROLE_MAPPING[Role.assistant]:
+            return None
+        if content.parts is None:
+            return None
+        response_json = "".join(
+            part.text
+            for part in content.parts
+            if part.text is not None and not part.thought
+        )
+        if len(response_json) == 0:
+            return None
+        try:
+            return schema.model_validate_json(response_json)
+        except ValidationError:
+            return None
 
     @property
     def contents(self) -> list[types.Content]:

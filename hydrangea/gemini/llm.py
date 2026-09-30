@@ -1,5 +1,6 @@
 from google import genai
 from google.genai import types
+from pydantic import BaseModel
 from typing_extensions import assert_never
 
 from .config import (
@@ -86,6 +87,7 @@ class Gemini:
         context: object,
         effort: ReasoningEffort,
         tool_declarations: list[ToolDeclaration],
+        schema:type[BaseModel]|None,
         temperature: float | None
     ) -> types.Content:
         if not isinstance(context, GeminiContext):
@@ -120,6 +122,10 @@ class Gemini:
                     include_thoughts=True,
                 ),
                 system_instruction=prompt,
+                response_json_schema=schema,
+                response_mime_type=(
+                    "application/json" if schema is not None else None
+                ),
                 tools=(
                     [
                         types.Tool(

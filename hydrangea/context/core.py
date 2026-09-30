@@ -1,7 +1,8 @@
 from collections.abc import Sequence
-from typing import Protocol, TypeAlias
+from typing import Protocol, TypeAlias, TypeVar
 
 from google.genai import types
+from pydantic import BaseModel
 from typing_extensions import assert_never
 
 from ..gateway import GatewayType
@@ -23,6 +24,8 @@ NativeContent: TypeAlias = (
     types.Content
     | OpenAIContextContent
 )
+
+SCHEMA_INPUT = TypeVar("SCHEMA_INPUT", bound=BaseModel)
 
 
 class ContextImplementation(Protocol):
@@ -53,6 +56,9 @@ class ContextImplementation(Protocol):
     def last_tool_calls(self) -> list[ToolCall] | None:
         ...
 
+    def last_schema_output(self, schema: type[SCHEMA_INPUT]) -> SCHEMA_INPUT | None:
+        ...
+
     def __len__(self) -> int:
         ...
 
@@ -74,7 +80,7 @@ class Context:
                     context = native
                 else:
                     raise TypeError(
-                        "Context implementation does not match Gemini: "
+                        "Context implementation does not match Gemini: " +
                         f"got {type(native).__name__}."
                     )
 
@@ -88,7 +94,7 @@ class Context:
                     context = native
                 else:
                     raise TypeError(
-                        "Context implementation does not match OpenAI: "
+                        "Context implementation does not match OpenAI: " +
                         f"got {type(native).__name__}."
                     )
 
@@ -133,6 +139,9 @@ class Context:
 
     def latest_tool_calls(self) -> list[ToolCall] | None:
         return self._native.last_tool_calls()
+
+    def last_schema_output(self, schema: type[SCHEMA_INPUT]) -> SCHEMA_INPUT | None:
+        return self._native.last_schema_output(schema)
 
     @property
     def gateway_type(self) -> GatewayType:
