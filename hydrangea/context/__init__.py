@@ -6,7 +6,7 @@ from .core import (
 )
 
 from .area import AreaBuiltin,Area,AreaInvokeTiming,AreaLifeState,ContextAreaImplementation
-from .coop_context import CoopContext
+from .coop_context import CoopContext, AreaLaneHandle,AreaLane,AreaLayout
 
 __all__ = [
     "Context",
@@ -18,5 +18,8 @@ __all__ = [
     "Area",
     "AreaInvokeTiming",
     "AreaLifeState",
-    "ContextAreaImplementation"
+    "ContextAreaImplementation",
+    "AreaLaneHandle",
+    "AreaLane",
+    "AreaLayout"
 ]
