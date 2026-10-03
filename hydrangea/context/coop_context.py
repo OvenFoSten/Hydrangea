@@ -452,10 +452,6 @@ class CoopContext:
     def gateway_type(self):
         return self._context.gateway_type
 
-    @property
-    def raw(self):
-        return self._context
-
     def push_back(self, content: NativeContent):
         self._context.push_back(content)
 
