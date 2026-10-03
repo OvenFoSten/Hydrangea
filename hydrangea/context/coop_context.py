@@ -1,10 +1,12 @@
 from dataclasses import dataclass
-from collections.abc import Iterator
-from typing import Final, NewType
+from collections.abc import Iterator, Sequence
+from typing import Final, NewType, TypeVar
+
+from pydantic import BaseModel
 
 from .area import AreaLifeState, AreaInvokeTiming
 from .area import ContextAreaImplementation as _Area
-from .core import Context, NativeContent
+from .core import Context, FunctionReply, NativeContent
 from ..message import Message
 
 
@@ -79,7 +81,9 @@ class _ObserveRange:
 class _CollectCandidate:
     area: _Area
     last_touched: int
-_INVALID_LAST_TOUCHED:Final[int] = -2048
+
+
+_INVALID_LAST_TOUCHED: Final[int] = -2048
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +91,9 @@ class _CollectPlan:
     earliest: int | None
     expected_context_size: int
     candidates: tuple[_CollectCandidate, ...]
+
+
+SCHEMA_INPUT = TypeVar("SCHEMA_INPUT", bound=BaseModel)
 
 
 class CoopContext:
@@ -143,7 +150,7 @@ class CoopContext:
     def overlay(self, area: _Area, handle: AreaLaneHandle):
         self._validate_area(area)
         # It's better to access the protected member instead of design something complex to bypass Pyright.
-        chain_ref = handle._chain_ref # pyright: ignore[reportPrivateUsage]
+        chain_ref = handle._chain_ref  # pyright: ignore[reportPrivateUsage]
         if chain_ref not in self._area_chains:
             raise ValueError("Hanging Handle.")
         chain_ref.push(area)
@@ -155,25 +162,25 @@ class CoopContext:
             _AreaChain(*areas_chain)
         )
 
-    def compose(self,layout:AreaLayout):
-        #We decide not to make protocol runtime checkable.
+    def compose(self, layout: AreaLayout):
+        # We decide not to make protocol runtime checkable.
         # Meanwhile Area(ABC) is optional so we do not wanna couple it here.
         areas = [
             area
             for item in layout
             for area in (
-            item.areas if isinstance(item, AreaLane) else [item]
+                item.areas if isinstance(item, AreaLane) else [item]
             )
         ]
         self._validate_area_batch(areas)
-        
+
         for item in layout:
-            if isinstance(item,AreaLane):
+            if isinstance(item, AreaLane):
                 self.append_lane(item)
             else:
                 self.append_lane(AreaLane(item))
 
-    def fetch_handle(self,target:_Area)->AreaLaneHandle|None:
+    def fetch_handle(self, target: _Area) -> AreaLaneHandle | None:
         for chain in self._area_chains:
             if target in chain:
                 return AreaLaneHandle(chain)
@@ -201,7 +208,7 @@ class CoopContext:
                     continue
                 if self._area_observe_range_mapping.get(area) is not None:
                     continue
-                collected_areas.append(_CollectCandidate(area,_INVALID_LAST_TOUCHED))
+                collected_areas.append(_CollectCandidate(area, _INVALID_LAST_TOUCHED))
         # 2. Collect observe-only areas.
         for area, ob_range in self._area_observe_range_mapping.items():
             if area.life_state is not AreaLifeState.retired:
@@ -281,7 +288,7 @@ class CoopContext:
         for candidate in untouched_candidates:
             area = candidate.area
             area.gc_prologue()
-        
+
         touched_candidates = [c for c in candidates if c.last_touched != _INVALID_LAST_TOUCHED]
         ordered = sorted(
             touched_candidates,
@@ -415,7 +422,7 @@ class CoopContext:
             content_start: int = len(self._context)
             content_end = content_start
 
-            if content is not None:    
+            if content is not None:
                 if len(content) == 0:
                     raise ValueError("Area return empty content is illegal.")
                 content_end = len(self._context) + len(content) - 1
@@ -445,5 +452,21 @@ class CoopContext:
     def gateway_type(self):
         return self._context.gateway_type
 
-    def push_back(self,content:NativeContent):
+    @property
+    def raw(self):
+        return self._context
+
+    def push_back(self, content: NativeContent):
         self._context.push_back(content)
+
+    def emplace_function_replies(self, replies: Sequence[FunctionReply]):
+        self._context.emplace_function_replies(replies)
+
+    def last_tool_calls(self):
+        return self._context.latest_tool_calls()
+
+    def last_schema_output(self, schema: type[SCHEMA_INPUT]):
+        return self._context.last_schema_output(schema)
+
+    def emplace_message(self,message:Message):
+        self._context.emplace_message(message)
