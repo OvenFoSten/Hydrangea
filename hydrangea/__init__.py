@@ -25,7 +25,7 @@ from .llm import (
 from .general import EmbClient, EmbClientConfig
 from .tool import Tool, ToolDeclaration
 from .instruction import SystemInstruction
-from .context import AreaBuiltin,CoopContext
+from .context import AreaBuiltin,CoopContext,Area,AreaInvokeTiming,AreaLifeState,ContextAreaImplementation
 
 __all__ = [
     "Context",
@@ -50,5 +50,9 @@ __all__ = [
     "FunctionReply",
     "SystemInstruction",
     "AreaBuiltin",
-    "CoopContext"
+    "CoopContext",
+    "Area",
+    "AreaInvokeTiming",
+    "AreaLifeState",
+    "ContextAreaImplementation"
 ]
