@@ -440,3 +440,7 @@ class CoopContext:
         self._cursor_store = next_cursor
 
         return self._context
+
+    @property
+    def gateway_type(self):
+        return self._context.gateway_type
