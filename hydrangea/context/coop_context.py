@@ -468,5 +468,5 @@ class CoopContext:
     def last_schema_output(self, schema: type[SCHEMA_INPUT]):
         return self._context.last_schema_output(schema)
 
-    def emplace_message(self,message:Message):
+    def emplace_unmanaged_message(self,message:Message):
         self._context.emplace_message(message)
