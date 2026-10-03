@@ -458,7 +458,7 @@ class CoopContext:
     def emplace_function_replies(self, replies: Sequence[FunctionReply]):
         self._context.emplace_function_replies(replies)
 
-    def last_tool_calls(self):
+    def latest_tool_calls(self):
         return self._context.latest_tool_calls()
 
     def last_schema_output(self, schema: type[SCHEMA_INPUT]):
