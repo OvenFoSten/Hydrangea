@@ -154,6 +154,9 @@ class Context:
     def __len__(self) -> int:
         return len(self._native)
 
+    def is_empty(self)->bool:
+        return len(self._native)==0
+
 
 __all__ = [
     "Context",

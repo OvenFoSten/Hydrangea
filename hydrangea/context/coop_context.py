@@ -466,3 +466,6 @@ class CoopContext:
 
     def emplace_unmanaged_message(self,message:Message):
         self._context.emplace_message(message)
+
+    def is_empty(self)->bool:
+        return self._context.is_empty()
